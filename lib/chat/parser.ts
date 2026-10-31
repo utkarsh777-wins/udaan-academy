@@ -122,6 +122,8 @@ const GREETING_WORDS = new Set(
   [
     "hi",
     "hello",
+    "hii",
+    "helo",
     "hey",
     "namaste",
     "namaskar",
@@ -419,49 +421,46 @@ function isBatchAnswer(text: string): boolean {
   return tokens.every((token) => periodOf(token) || BATCH_PARTICLES.has(token));
 }
 
-function peelPerson(name: string | null): string | null {
-  if (!name) return null;
-  const trailed = trailingNameAndPeriod(name);
-  return trailed.name ?? name;
-}
+const EXPLICIT_NAME_LEADS = [
+  /^(?:the name is|my name is|mera naam|name is|this is|i am)\s+/iu,
+  /^(?:i['’]?m|im|it['’]?s|its)\s+/iu,
+  /^(?:मेरा नाम|ਮੇਰਾ ਨਾਂ|ਮੇਰਾ ਨਾਮ)\s+/u,
+  /^(?:name|नाम)\s*[:：]\s*/iu,
+  /^(?:मैं|ਮੈਂ)\s+/u,
+  /^(?:spelled|spelt)\s+/iu,
+];
 
-function stripNameLeads(value: string): string {
-  let text = value.normalize("NFC").trim();
-  const lead = /^(?:i'?m|i am|it'?s|it is|main|मैं|ਮੈਂ|name|naam|नाम|ਨਾਂ|ਨਾਮ)\s+/iu;
-  let previous = "";
-  while (text && text !== previous) {
-    previous = text;
-    text = text.replace(lead, "").trim();
+const AMBIGUOUS_NAME_LEADS = new Set(["naam", "main", "mai", "नाम", "ਨਾਂ", "ਨਾਮ"].map(fold));
+
+const NAME_START_FILLERS = new Set(["now", "already", "actually", "just", "please", "plz", "अब", "ਹੁਣ"].map(fold));
+
+const NAME_TIME_TOKENS = new Set(
+  ["sham", "shaam", "subah", "savera", "sandhya", "शाम", "सुबह", "ਸ਼ਾਮ", "ਸਵੇਰ", "ਸਵੇਰੇ"].map(fold),
+);
+
+function stripNameAffixes(value: string): string {
+  let text = value.normalize("NFC").trim().replace(/^[।.!?]+|[।.!?]+$/gu, "");
+  let guard = 0;
+  while (text && guard < 4) {
+    guard += 1;
+    const next = EXPLICIT_NAME_LEADS.reduce((current, pattern) => current.replace(pattern, "").trim(), text);
+    if (next === text) break;
+    text = next;
   }
+  let words = text.split(/\s+/).filter(Boolean);
+  if (words.length >= 3 && AMBIGUOUS_NAME_LEADS.has(fold(words[0] ?? ""))) words = words.slice(1);
+  while (words.length > 1 && NAME_START_FILLERS.has(fold(words[0] ?? ""))) words = words.slice(1);
+  text = words.join(" ");
+  text = text.replace(/(?:\s+(?:hai|है|हैं|हूँ|हूं|ਹੈ|ਹਾਂ|ही|ਹੀ|ji|जी|ਜੀ|only|now|already|actually|just|please|plz|अब|ਹੁਣ))+$/iu, "").trim();
   return text;
 }
 
-function acceptName(value: string, allowMixed = false): string | null {
-  return cleanName(stripNameLeads(value), allowMixed);
-}
-
-export function normalisePersonName(value: string, allowMixed = false): string | null {
-  return peelPerson(acceptName(value, allowMixed));
-}
-
-function trailingNameAndPeriod(text: string): { name: string | null; period: DayPeriod | null } {
-  const match = text
-    .trim()
-    .match(
-      /^(.*?)(?:[,，]\s*|\s+)(morning|evening|afternoon|subah|dopahar|savera|shaam|sham|सुबह|दोपहर|शाम|ਸਵੇਰੇ?|ਦੁਪਹਿਰ|ਸ਼ਾਮ)(?:\s+(?:ka|ke|का|के|ਦਾ|ਦੇ|wala|वाला|ਵਾਲਾ))?(?:\s+(?:batch|बैच|ਬੈਚ))?$/iu,
-    );
-  if (!match) return { name: null, period: null };
-  const prefix = match[1].replace(/[,，]\s*$/u, "").trim();
-  const period = periodOf(match[2] ?? "");
-  const name = prefix ? acceptName(prefix) : null;
-  if (!name) return { name: null, period: null };
-  return { name, period };
+export function normalisePersonName(value: string): string | null {
+  return cleanName(value);
 }
 
 function resolvePeriod(text: string): DayPeriod | null {
   if (isBatchAnswer(text) || isBookingCommand(text)) return periodFromTokens(tokenize(text));
-  const trailed = trailingNameAndPeriod(text).period;
-  if (trailed) return trailed;
   const plain = text.trim().replace(/[।.!?]+$/u, "");
   if (isPersonName(plain) && !mentionsBatchWord(plain)) return null;
   return periodFromTokens(tokenize(text));
@@ -567,10 +566,10 @@ export function explicitName(text: string): string | null {
   for (const part of text.split(/[.?!।]+/u)) {
     const source = part.normalize("NFC").trim();
     if (!source) continue;
-    for (const { pattern, allowMixed } of NAME_PATTERNS) {
+    for (const { pattern } of NAME_PATTERNS) {
       const match = source.match(pattern);
       if (!match) continue;
-      const name = normalisePersonName(match[1] ?? "", allowMixed);
+      const name = normalisePersonName(match[1] ?? "");
       if (name) return name;
     }
   }
@@ -610,7 +609,7 @@ function nameBesidePhone(source: string): string | null {
     if (direct) return direct;
   }
   const introduced = before.match(
-    /\bfor\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60}?)(?=\s*(?:,\s*)?(?:phone|ph|फोन|ਫੋਨ|नंबर|ਨੰਬਰ)\b|\s*,|\s+\d)/iu,
+    /\bfor\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60}?)(?=\s*(?:,\s*)?(?:phone|ph|फोन|ਫੋਨ|नंबर|ਨੰਬਰ)\b|\s*,|\s+\d|\s*$)/iu,
   );
   return introduced ? normalisePersonName(introduced[1] ?? "") : null;
 }
@@ -628,31 +627,39 @@ function stripNameFillers(value: string): string {
     .join(" ");
 }
 
-function tidyName(value: string): string {
-  const cut = value.split(/[।?!]|\s+(?:and|aur|ਅਤੇ|phone|फोन|ਫੋਨ|,)/i)[0] ?? value;
-  return stripNameFillers(
-    cut
-      .replace(/[।.!?]+$/g, "")
-      .replace(/^(?:spelled|spelt)\s+/i, "")
-      .replace(/(?:\s+(?:है|हैं|हूँ|हूं|जी|hai|ਹੈ|ਹਾਂ|ਜੀ))+$/iu, "")
-      .replace(/(?:\s+(?:only|ही|ਹੀ))+$/iu, "")
-      .trim(),
-  );
-}
-
-function cleanName(value: string, allowMixed = false): string | null {
-  const name = tidyName(value);
+function cleanName(value: string): string | null {
+  const name = stripNameAffixes(value);
   if (!name) return null;
   const words = name.split(/\s+/).filter(Boolean);
   if (words.some((word) => NAME_JUNK.has(fold(word)))) return null;
-  const metas = words.filter((word) => NAME_META.has(fold(word)));
-  if (metas.length === words.length) return null;
-  if (metas.length > 0) {
-    if (!(allowMixed && words.length >= 2)) return null;
-    return name;
+  if (words.every((word) => NAME_META.has(fold(word)))) return null;
+  if (isPersonName(name)) return name;
+  const rest = words.filter((word) => !NAME_META.has(fold(word))).join(" ");
+  if (rest && rest !== name && isPersonName(rest)) return name;
+  return null;
+}
+
+export function readNameReply(text: string): { name: string | null; phone: string | null } {
+  const trimmed = text.normalize("NFC").trim();
+  if (!trimmed || isQuestionForm(trimmed) || isPureGreeting(tokenize(trimmed))) return { name: null, phone: null };
+  const phone = extractPhone(trimmed);
+  let source = trimmed;
+  if (phone) {
+    const at = fold(trimmed).search(/(?<!\d)(?:\+?91[\s-]*|0)?[6-9](?:[\s-]*\d){9}(?!\d)/);
+    if (at >= 0) source = trimmed.slice(0, at);
+    source = source
+      .replace(/(?:[,，]\s*)?(?:phone|ph|number|फोन|ਫੋਨ|नंबर|ਨੰਬਰ)\s*$/iu, "")
+      .replace(/[,，]\s*$/u, "")
+      .replace(/^\s*for\s+/iu, "")
+      .trim();
   }
-  if (!isPersonName(name)) return null;
-  return name;
+  if (mentionsBatchWord(source)) return { name: null, phone: null };
+  const named = normalisePersonName(source);
+  if (named) return { name: named, phone };
+  const bare = stripNameAffixes(source);
+  const words = bare.split(/\s+/).filter(Boolean);
+  if (words.length === 1 && NAME_TIME_TOKENS.has(fold(words[0] ?? ""))) return { name: bare, phone };
+  return { name: null, phone: null };
 }
 
 const NAME_CONFIRM = new Set(
@@ -804,6 +811,7 @@ const RESERVED_NAMES = new Set(
     "ਰੱਦ",
     "रुको",
     "रुकिए",
+    "sat sri akal",
     "रद्द",
     "sunday",
     "monday",
@@ -856,10 +864,14 @@ export function isPersonName(value: string): boolean {
     "ok",
     "okay",
     "hi",
+    "hii",
+    "helo",
     "hello",
     "hey",
     "namaste",
     "namaskar",
+    "नमस्ते",
+    "नमस्कार",
     "trial",
     "हाँ",
     "हां",
@@ -1094,9 +1106,12 @@ function extractDate(text: string, now: Date): string | null {
 
 function clauseNegatesDay(clause: string): boolean {
   const folded = fold(clause);
+  const tokens = tokenize(clause).map(fold);
+  const notAt = tokens.indexOf("not");
+  const dayAfterNot = notAt >= 0 && tokens.slice(notAt + 1).some((token) => WEEKDAY_NAMES[token] != null);
   return (
     /\b(?:busy|unable)\b/.test(folded) ||
-    /\bnot\b/.test(folded) ||
+    dayAfterNot ||
     /\bnot free\b/.test(folded) ||
     /\b(?:can't|cannot|cant)\b/.test(folded) ||
     folded.includes("व्यस्त") ||
@@ -1292,6 +1307,8 @@ export function questionAboutTrialEligibility(text: string): boolean {
 const SOCIAL_GREETINGS = new Set(
   [
     "hi",
+    "hii",
+    "helo",
     "hello",
     "hey",
     "namaste",
@@ -1355,8 +1372,7 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
   const { partySize, time } = scanQuantities(tokens);
   const phone = extractPhone(prepared);
   const named = extractName(prepared);
-  const trailed = trailingNameAndPeriod(prepared);
-  const resolvedName = named.name ?? trailed.name;
+  const resolvedName = named.name;
   const period = resolvePeriod(textWithoutName(prepared, resolvedName));
   const batch = batchFrom(period, resolvedName ? null : time);
   const date = extractDate(prepared, now);
@@ -1389,7 +1405,7 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
     partySize,
     phone,
     name: resolvedName,
-    nameExplicit: named.explicit || Boolean(trailed.name),
+    nameExplicit: named.explicit,
     date,
     greeting: false,
   };

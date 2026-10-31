@@ -18,7 +18,7 @@ import {
   explicitNameRejection,
   isBareWrong,
   mentionsBatchWord,
-  normalisePersonName,
+  readNameReply,
   isLoneWeakConfirm,
   fold,
   includesTerm,
@@ -95,6 +95,19 @@ export function counsel(options: {
       }
       return resumeDraft(kept, language);
     }
+    if (isSubstantiveQuestion(options.text) || isOnlineQuestion(options.text)) {
+      const body = spokenAnswer(parsed, options.text, language);
+      const rename = renameQuestion(language, pendingName);
+      const reply = specifiesFieldChange(parsed)
+        ? `${body.replace(/\s*Shall I send this\? \(yes \/ no\)|\s*भेज दूँ\? \(हाँ \/ नहीं\)|\s*ਭੇਜ ਦਿਆਂ\? \(ਹਾਂ \/ ਨਹੀਂ\)/gu, "").trim()} ${rename}`.trim()
+        : withOneQuestion(body, rename);
+      return {
+        reply,
+        draft: { ...incoming, pendingName, active: true },
+        ready: false,
+        intent: "book",
+      };
+    }
     const pieces = options.text.split(/\band\b|[,，]/iu).map((part) => part.trim()).filter(Boolean);
     const yesPart = isRenameYes(options.text, pendingName) || pieces.some((part) => isRenameYes(part, pendingName));
     if (yesPart && specifiesFieldChange(parsed)) {
@@ -104,15 +117,6 @@ export function counsel(options: {
     } else if (isRenameNo(options.text)) {
       return resumeDraft({ ...incoming, pendingName: undefined }, language);
     } else if (isRenameBypass(options.text, parsed, pendingName)) {
-      const question = isSubstantiveQuestion(options.text) && !specifiesFieldChange(parsed);
-      if (question) {
-        return {
-          reply: withOneQuestion(spokenAnswer(parsed, options.text, language), renameQuestion(language, pendingName)),
-          draft: { ...incoming, pendingName, active: true },
-          ready: false,
-          intent: "book",
-        };
-      }
       const follow = counsel({ text: options.text, language, draft: { ...incoming, pendingName: undefined }, now });
       return {
         reply: renameQuestion(language, pendingName),
@@ -230,11 +234,28 @@ export function counsel(options: {
     };
   }
 
+  if (hasStarted(incoming) && !incoming.name && !isSubstantiveQuestion(options.text) && !isOnlineQuestion(options.text)) {
+    const taken = readNameReply(options.text);
+    if (!taken.name) {
+      return {
+        reply: askFor("name", language),
+        draft: { ...incoming, active: true },
+        ready: false,
+        intent: "book",
+      };
+    }
+    const named: Draft = { ...incoming, name: taken.name, active: true, confirming: false, pendingName: undefined };
+    if (taken.phone) named.phone = taken.phone;
+    return resumeDraft(named, language);
+  }
+
   const base = incoming.confirming ? { ...incoming, confirming: false } : incoming;
+  const labelledBatch = Boolean(mentionsBatchWord(options.text) && parsed.batch);
   const fillsBooking = Boolean(
     !isSubstantiveQuestion(options.text) &&
       parsed.name &&
-      [Boolean(parsed.phone), parsed.courses.length === 1, Boolean(parsed.batch), Boolean(parsed.date)].filter(Boolean).length >= 2,
+      (labelledBatch ||
+        [Boolean(parsed.phone), parsed.courses.length === 1, Boolean(parsed.batch), Boolean(parsed.date)].filter(Boolean).length >= 2),
   );
   const booking = parsed.intent === "book" || hasStarted(base) || incoming.confirming || fillsBooking;
   if (!booking) {
@@ -251,7 +272,11 @@ export function counsel(options: {
     };
   }
 
-  const merged = { ...mergeDraft(base, parsed, options.text), active: true, confirming: false };
+  const merged = {
+    ...mergeDraft(base, parsed, options.text, mayApplyBatch(options.text, base, Boolean(incoming.confirming))),
+    active: true,
+    confirming: false,
+  };
   const namedField = namedSlot(options.text);
   if (namedField && sameSlots(base, merged) && (base[namedField] || incoming.confirming)) {
     const cleared: Draft = { ...merged, confirming: false, active: true };
@@ -389,7 +414,6 @@ const CANCEL_PHRASES = [
   "never mind",
   "nevermind",
   "forget it",
-  "रुकिए",
   "रद्द",
   "रद्द करो",
   "रद्द करें",
@@ -410,7 +434,7 @@ const CANCEL_PHRASES = [
 ].map((phrase) => phrase.normalize("NFC").toLowerCase());
 
 const CANCEL_TOKENS = new Set(
-  ["cancel", "stop", "rehne", "रुकिए", "रद्द", "कैंसल", "कैंसिल", "छोड़ो", "ਰੱਦ", "ਛੱਡੋ", "ਕੈਂਸਲ"].map((word) =>
+  ["cancel", "stop", "rehne", "रद्द", "कैंसल", "कैंसिल", "छोड़ो", "ਰੱਦ", "ਛੱਡੋ", "ਕੈਂਸਲ"].map((word) =>
     word.normalize("NFC").toLowerCase(),
   ),
 );
@@ -476,8 +500,11 @@ function isCancel(text: string): boolean {
 }
 
 function startsWithNo(text: string): boolean {
-  const first = text.normalize("NFC").trim().split(/[\s,，]+/u)[0]?.toLowerCase() ?? "";
-  return ["no", "nope", "nah", "nahi", "nahin", "नहीं", "नही", "ना", "ਨਹੀਂ", "ਨਾ"].includes(first);
+  const flat = text.normalize("NFC").trim().toLowerCase().replace(/[,，]+/g, " ").replace(/\s+/g, " ");
+  const phrases = ["do not change", "don't change", "dont change", "not needed", "mat badlo", "मत बदलो", "ਨਾ ਬਦਲੋ"];
+  if (phrases.some((phrase) => flat === phrase || flat.startsWith(`${phrase} `))) return true;
+  const first = flat.split(/\s+/u)[0] ?? "";
+  return ["no", "nope", "nah", "na", "naa", "nai", "nhi", "nahi", "nahin", "नहीं", "ना", "नही", "ਨਹੀਂ", "ਨਾ"].includes(first);
 }
 
 const RENAME_YES = new Set(
@@ -576,7 +603,11 @@ function nameWithQuestion(text: string): string | null {
   const name = explicitName(text);
   if (!name) return null;
   const question = parts.some((part) => isQuestionForm(part) || isOnlineQuestion(part) || isTrialInfoQuestion(part));
-  return question ? name : null;
+  if (!question) return null;
+  const asked = parts.slice(1).join(". ");
+  const parsed = parseUtterance(asked);
+  if (parsed.intent === "fees" || parsed.intent === "batches" || parsed.batch || parsed.courses.length > 0) return null;
+  return name;
 }
 
 function confirmPlusCancel(folded: string): boolean {
@@ -1047,7 +1078,13 @@ function summaryReply(draft: Draft, language: Language): string {
   return [finish(language, line), academy.counsellor.confirmAsk[language]].join(" ");
 }
 
-function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
+function mayApplyBatch(text: string, draft: Draft, confirming: boolean): boolean {
+  if (hasStarted(draft) && !draft.name) return false;
+  if (hasStarted(draft) || confirming) return true;
+  return mentionsBatchWord(text) || isBookingCommand(text);
+}
+
+function mergeDraft(draft: Draft, parsed: ParseResult, text: string, applyBatch: boolean): Draft {
   const next: Draft = { ...draft, confirming: false };
   const pending = firstMissing(next);
   if (parsed.nameExplicit && parsed.name && !next.name) next.name = parsed.name;
@@ -1058,8 +1095,8 @@ function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
   }
   if (parsed.phone) next.phone = parsed.phone;
   if (parsed.courses.length === 1) next.course = parsed.courses[0];
-  if (parsed.batch && isBatchOnCourse(next.course, parsed.batch)) next.batch = parsed.batch;
-  else if (parsed.batch && !next.course) next.batch = parsed.batch;
+  if (applyBatch && parsed.batch && isBatchOnCourse(next.course, parsed.batch)) next.batch = parsed.batch;
+  else if (applyBatch && parsed.batch && !next.course) next.batch = parsed.batch;
   if (parsed.date) next.date = parsed.date;
   if (next.course && next.batch && !isBatchOnCourse(next.course, next.batch)) {
     next.batch = undefined;
@@ -1471,7 +1508,7 @@ function stripPunctuation(value: string): string {
 
 function spokenName(text: string): string | null {
   if (mentionsBatchWord(text)) return null;
-  return normalisePersonName(stripPunctuation(text));
+  return readNameReply(stripPunctuation(text)).name;
 }
 
 export function speak(language: Language, sentences: Array<string | null | undefined | false>): string {
