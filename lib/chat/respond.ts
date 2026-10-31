@@ -80,19 +80,28 @@ export function counsel(options: {
 
   if (incoming.pendingName) {
     const pendingName = incoming.pendingName;
-    if (isRenameYes(options.text, pendingName)) {
+    const pieces = options.text.split(/\band\b/iu).map((part) => part.trim()).filter(Boolean);
+    const yesPart = isRenameYes(options.text, pendingName) || pieces.some((part) => isRenameYes(part, pendingName));
+    if (yesPart && specifiesFieldChange(parsed)) {
+      incoming = { ...incoming, name: pendingName, pendingName: undefined };
+    } else if (yesPart) {
       return resumeDraft({ ...incoming, name: pendingName, pendingName: undefined }, language);
-    }
-    if (isRenameNo(options.text)) {
+    } else if (isRenameNo(options.text)) {
       return resumeDraft({ ...incoming, pendingName: undefined }, language);
-    }
-    if (!isRenameBypass(options.text, parsed, pendingName)) {
+    } else if (isRenameBypass(options.text, parsed, pendingName)) {
+      const follow = counsel({ text: options.text, language, draft: { ...incoming, pendingName: undefined }, now });
+      return {
+        reply: [follow.reply, renameQuestion(language, pendingName)].filter(Boolean).join(" "),
+        draft: { ...follow.draft, name: incoming.name, pendingName, active: true },
+        ready: false,
+        intent: "book",
+      };
+    } else {
       return askRename(incoming, pendingName, language);
     }
-    incoming = { ...incoming, pendingName: undefined };
   }
 
-  if (incoming.confirming && isBareWrong(options.text)) {
+  if (hasStarted(incoming) && isBareWrong(options.text)) {
     return {
       reply: whichPartWrong(language),
       draft: { ...incoming, pendingName: undefined },
@@ -134,7 +143,11 @@ export function counsel(options: {
   }
 
   if (hasStarted(incoming) && isSubstantiveQuestion(options.text)) {
-    return answerBesideDraft(incoming, stated, parsed, options.text, language);
+    const afterQuestion = options.text.split(/[?？]/u).slice(1).join(" ").trim();
+    const afterParsed = afterQuestion ? parseUtterance(afterQuestion, now) : null;
+    if (!afterParsed || !specifiesFieldChange(afterParsed)) {
+      return answerBesideDraft(incoming, stated, parsed, options.text, language);
+    }
   }
 
   if (hasStarted(incoming) && !isBookingCommand(options.text)) {
@@ -174,7 +187,7 @@ export function counsel(options: {
     };
   }
 
-  if (incoming.confirming && isHedged(options.text)) {
+  if (incoming.confirming && isHedged(options.text) && !specifiesFieldChange(parsed)) {
     return {
       reply: clearYesReply(language),
       draft: incoming,
@@ -252,9 +265,9 @@ export function counsel(options: {
   const preface =
     parsed.intent === "fees"
       ? [answer(parsed, options.text, language)]
-      : parsed.intent === "phone"
-        ? [answer(parsed, options.text, language)]
-        : [];
+        : parsed.intent === "phone" && !parsed.phone
+          ? [answer(parsed, options.text, language)]
+          : [];
 
   const repeatAsk = draft.hint || dateMiss ? null : askFor(missingField, language);
   return {
@@ -410,7 +423,7 @@ function isCancel(text: string): boolean {
   if (confirmPlusCancel(folded)) return true;
   const clauses = text
     .normalize("NFC")
-    .split(/[.?!।,，\n\r]+|\band\b/iu)
+    .split(/[.?!।,，\n\r]+/u)
     .map((part) => part.trim())
     .filter(Boolean);
   return clauses.length > 1 && clauses.some((clause) => clause !== text.trim() && isCancel(clause));
@@ -466,6 +479,11 @@ const RENAME_YES = new Set(
     "sab sahi",
     "सब सही",
     "सब सही है",
+    "yes please",
+    "ok please",
+    "okay please",
+    "haan ji",
+    "ਸਭ ਸਹੀ ਹੈ",
   ].map((phrase) => phrase.normalize("NFC").toLowerCase()),
 );
 
@@ -474,17 +492,18 @@ function plainWords(text: string): string {
 }
 
 function isRenameYes(text: string, pendingName: string): boolean {
-  if (isHedged(text) || isCancel(text)) return false;
+  if (isHedged(text) || isCancel(text) || specifiesFieldChange(parseUtterance(text))) return false;
   const trimmed = plainWords(text);
-  if (RENAME_YES.has(trimmed)) return true;
+  if (RENAME_YES.has(trimmed) || (isAffirmative(text) && !isReadyToSend(text))) return true;
   if (fold(trimmed) === fold(pendingName)) return true;
   const stated = explicitName(text);
-  return Boolean(stated && fold(stated) === fold(pendingName) && !specifiesFieldChange(parseUtterance(text)));
+  return Boolean(stated && fold(stated) === fold(pendingName));
 }
 
 function isRenameNo(text: string): boolean {
   const trimmed = plainWords(text);
-  return ["no", "nope", "nah", "nahi", "nahin", "keep it", "the old one", "नहीं", "नही", "ਨਹੀਂ", "ਨਾ"].includes(trimmed);
+  if (["no", "nope", "nah", "nahi", "nahin", "keep it", "the old one", "नहीं", "नही", "ਨਹੀਂ", "ਨਾ"].includes(trimmed)) return true;
+  return /^(?:no|nah|nahi|nahin|नहीं|नही|ਨਹੀਂ|ਨਾ)\s+(?:thanks|thank you|please|ji|जी|ਜੀ)$/u.test(trimmed);
 }
 
 function isRenameBypass(text: string, parsed: ParseResult, pendingName: string): boolean {
@@ -585,13 +604,14 @@ function answerBesideDraft(
   };
 }
 
+function renameQuestion(language: Language, name: string): string {
+  if (language === "hi") return `नाम बदल कर '${name}' कर दूँ?`;
+  if (language === "pa") return `ਨਾਮ ਬਦਲ ਕੇ '${name}' ਕਰ ਦਿਆਂ?`;
+  return `Change the name to '${name}'?`;
+}
+
 function askRename(draft: Draft, name: string, language: Language, preface?: string | null): CounselResult {
-  const question =
-    language === "hi"
-      ? `नाम बदल कर '${name}' कर दूँ?`
-      : language === "pa"
-        ? `ਨਾਮ ਬਦਲ ਕੇ '${name}' ਕਰ ਦਿਆਂ?`
-        : `Change the name to '${name}'?`;
+  const question = renameQuestion(language, name);
   return {
     reply: [preface, question].filter(Boolean).join(" "),
     draft: { ...draft, pendingName: name, active: true },
@@ -973,8 +993,9 @@ function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
   const pending = firstMissing(next);
   if (parsed.nameExplicit && parsed.name && !next.name) next.name = parsed.name;
   else if (!next.name && parsed.name) next.name = parsed.name;
-  else if (!next.name && pending === "name" && parsed.intent !== "book" && isPersonName(stripPunctuation(text))) {
-    next.name = stripPunctuation(text);
+  else if (!next.name && pending === "name" && parsed.intent !== "book") {
+    const spoken = spokenName(text);
+    if (spoken) next.name = spoken;
   }
   if (parsed.phone) next.phone = parsed.phone;
   if (parsed.courses.length === 1) next.course = parsed.courses[0];
@@ -1387,6 +1408,18 @@ function mentionsSeniorClass(text: string): boolean {
 
 function stripPunctuation(value: string): string {
   return value.normalize("NFC").trim().replace(/[।.!?]+$/u, "");
+}
+
+function spokenName(text: string): string | null {
+  const plain = stripPunctuation(text);
+  const core = plain
+    .replace(/^(?:i'?m|i am)\s+/iu, "")
+    .replace(/^(?:मैं|main)\s+/u, "")
+    .replace(/^ਮੈਂ\s+/u, "")
+    .replace(/(?:\s+(?:हूँ|हूं|हैं|ਹਾਂ))+$/u, "")
+    .trim();
+  if (/^(?:i'?m|i am|मैं|main|ਮੈਂ)\b/iu.test(plain)) return isPersonName(core) ? core : null;
+  return isPersonName(plain) ? plain : null;
 }
 
 export function speak(language: Language, sentences: Array<string | null | undefined | false>): string {

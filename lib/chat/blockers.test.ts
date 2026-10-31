@@ -905,7 +905,8 @@ describe("blocker regressions", () => {
     const drifted = counsel({ text: "tomorrow", language: "en", draft: punjabiAsk.draft, now });
     expect(drifted.draft.name).toBe("Simran");
     expect(drifted.draft.date).toBeUndefined();
-    expect(drifted.draft.pendingName).toBeUndefined();
+    expect(drifted.draft.pendingName).toBe("ਹਰਮਨ");
+    expect(drifted.reply).toContain("ਹਰਮਨ");
     const punjabiYes = counsel({ text: "ਹਾਂ", language: "pa", draft: punjabiAsk.draft, now });
     expect(punjabiYes.draft.name).toBe("ਹਰਮਨ");
     expect(punjabiYes.ready).toBe(false);
@@ -1118,20 +1119,24 @@ describe("blocker regressions", () => {
     const pending = counsel({ text: "my name is Aman Gill", language: "en", draft: confirming, now });
     const dated = counsel({ text: "Tuesday", language: "en", draft: pending.draft, now });
     expect(dated.draft.name).toBe("Simran");
-    expect(dated.draft.pendingName).toBeUndefined();
+    expect(dated.draft.pendingName).toBe("Aman Gill");
     expect(dated.draft.date).toBe("2026-11-03");
+    expect(dated.reply).toContain("Aman Gill");
     expect(dated.ready).toBe(false);
     const phoned = counsel({ text: "9876501234", language: "en", draft: pending.draft, now });
     expect(phoned.draft.phone).toBe("9876501234");
     expect(phoned.draft.name).toBe("Simran");
+    expect(phoned.draft.pendingName).toBe("Aman Gill");
     expect(phoned.ready).toBe(false);
     const batched = counsel({ text: "evening", language: "en", draft: pending.draft, now });
     expect(batched.draft.batch).toBe("evening");
     expect(batched.draft.name).toBe("Simran");
+    expect(batched.draft.pendingName).toBe("Aman Gill");
     const asked = counsel({ text: "Is the trial online?", language: "en", draft: pending.draft, now });
     expect(asked.draft.name).toBe("Simran");
-    expect(asked.draft.pendingName).toBeUndefined();
+    expect(asked.draft.pendingName).toBe("Aman Gill");
     expect(asked.reply.toLowerCase()).toContain("not online");
+    expect(asked.reply).toContain("Aman Gill");
     expect(asked.ready).toBe(false);
 
     const fresh = counsel({ text: "name: Navjot Kaur. Is the trial online?", language: "en", now });
@@ -1267,5 +1272,106 @@ describe("blocker regressions", () => {
     expect(shaam.reply).toContain("Shall I send");
     expect(counsel({ text: "don't cancel", language: "en", draft: confirming, now }).draft.name).toBe("Simran");
     expect(counsel({ text: "can I cancel later?", language: "en", draft: confirming, now }).draft.name).toBe("Simran");
+  });
+
+  it("R15 keeps Sham-style names out of the evening batch", () => {
+    const names = ["Sham Singh", "Sham Lal", "Sham Sundar", "शाम लाल", "ਸ਼ਾਮ ਲਾਲ"];
+    for (const name of names) {
+      const started = counsel({ text: "Book an IELTS trial", language: "en", now });
+      expect(started.draft.batch, name).toBeUndefined();
+      const bare = counsel({ text: name, language: "en", draft: started.draft, now });
+      expect(bare.draft.name, `bare ${name}`).toBe(name);
+      expect(bare.draft.batch, `bare ${name}`).toBeUndefined();
+      expect(bare.reply.toLowerCase(), `bare ${name}`).toMatch(/phone|फोन|ਫੋਨ/);
+
+      const stated = counsel({ text: `my name is ${name}`, language: "en", draft: started.draft, now });
+      expect(stated.draft.name, `my name ${name}`).toBe(name);
+      expect(stated.draft.batch, `my name ${name}`).toBeUndefined();
+
+      const introduced = counsel({ text: `Book an IELTS trial for ${name}, 9876543210`, language: "en", now });
+      expect(introduced.draft.name, `for ${name}`).toBe(name);
+      expect(introduced.draft.phone, `for ${name}`).toBe("9876543210");
+      expect(introduced.draft.batch, `for ${name}`).toBeUndefined();
+      expect(introduced.reply.toLowerCase(), `for ${name}`).toMatch(/batch|बैच|ਬੈਚ/);
+
+      const prefixed = counsel({ text: `I am ${name}`, language: "en", draft: started.draft, now });
+      expect(prefixed.draft.name, `I am ${name}`).toBe(name);
+      expect(prefixed.draft.name, `I am ${name}`).not.toMatch(/^I am /);
+      expect(prefixed.draft.batch, `I am ${name}`).toBeUndefined();
+    }
+
+    const hindi = counsel({ text: "मेरा नाम शाम लाल है", language: "hi", draft: { active: true }, now });
+    expect(hindi.draft.name).toBe("शाम लाल");
+    expect(hindi.draft.batch).toBeUndefined();
+
+    let ticket = counsel({ text: "Book an IELTS trial", language: "en", now }).draft;
+    ticket = counsel({ text: "Sham Singh", language: "en", draft: ticket, now }).draft;
+    ticket = counsel({ text: "9876543210", language: "en", draft: ticket, now }).draft;
+    const dated = counsel({ text: "3 November", language: "en", draft: ticket, now });
+    expect(dated.draft.name).toBe("Sham Singh");
+    expect(dated.draft.batch).toBeUndefined();
+    expect(dated.draft.date).toBe("2026-11-03");
+    expect(dated.reply.toLowerCase()).toMatch(/batch/);
+    expect(dated.ready).toBe(false);
+
+    const shaam = counsel({ text: "sahi hai, shaam ka batch", language: "en", draft: { active: true, confirming: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const, date: "2026-11-20" }, now });
+    expect(shaam.draft.batch).toBe("evening");
+    expect(shaam.ready).toBe(false);
+  });
+
+  it("R15 handles cancel parts, rename follow-ups, and the remaining polish", () => {
+    const confirming = {
+      active: true,
+      confirming: true,
+      name: "Simran",
+      phone: "9876543210",
+      course: "ielts-pte",
+      batch: "morning" as const,
+      date: "2026-11-20",
+    };
+    const midway = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const };
+    expect(counsel({ text: "stop and think", language: "en", draft: confirming, now }).draft.name).toBe("Simran");
+    const movedDate = counsel({ text: "do not cancel and change date to 5 November", language: "en", draft: confirming, now });
+    expect(movedDate.draft.name).toBe("Simran");
+    expect(movedDate.draft.date).toBe("2026-11-05");
+    expect(movedDate.ready).toBe(false);
+    const questioned = counsel({ text: "cancel? no and evening", language: "en", draft: confirming, now });
+    expect(questioned.draft.name).toBe("Simran");
+    expect(questioned.draft.batch).toBe("evening");
+    expect(questioned.ready).toBe(false);
+
+    const pending = counsel({ text: "my name is Aman Gill", language: "en", draft: confirming, now });
+    const both = counsel({ text: "correct and evening batch", language: "en", draft: pending.draft, now });
+    expect(both.ready).toBe(false);
+    expect(both.draft.name).toBe("Aman Gill");
+    expect(both.draft.batch).toBe("evening");
+    expect(both.draft.pendingName).toBeUndefined();
+    expect(both.reply).toContain("Shall I send");
+    for (const [text, yes] of [
+      ["yes please", true],
+      ["ok please", true],
+      ["haan ji", true],
+      ["no thanks", false],
+      ["nahi ji", false],
+    ] as const) {
+      const answered = counsel({ text, language: "en", draft: pending.draft, now });
+      expect(answered.ready, text).toBe(false);
+      expect(answered.draft.name, text).toBe(yes ? "Aman Gill" : "Simran");
+      expect(answered.draft.pendingName, text).toBeUndefined();
+    }
+
+    const phone = counsel({ text: "change phone to 9876501234", language: "en", draft: midway, now });
+    expect(phone.draft.phone).toBe("9876501234");
+    expect(phone.reply).toContain("Which date works?");
+    expect(phone.reply).not.toMatch(/sample|असली|ਅਸਲੀ/i);
+    const wrong = counsel({ text: "wrong", language: "en", draft: midway, now });
+    expect(wrong.draft.name).toBe("Simran");
+    expect(wrong.reply).toContain("Which part is wrong?");
+    expect(wrong.reply).not.toMatch(/couldn.t read that date/);
+    expect(counsel({ text: "ਸਭ ਸਹੀ ਹੈ", language: "pa", draft: confirming, now }).ready).toBe(true);
+    const started = counsel({ text: "Book an IELTS trial", language: "en", now }).draft;
+    for (const text of ["one minute", "wait", "ek minute", "ruko"]) {
+      expect(counsel({ text, language: "en", draft: started, now }).draft.name, text).toBeUndefined();
+    }
   });
 });

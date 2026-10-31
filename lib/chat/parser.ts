@@ -112,8 +112,8 @@ const CLOCK_MARKERS = new Set(
   ),
 );
 
-const MORNING = ["morning", "सुबह", "सवेरे", "सवेरा", "तड़के", "ਸਵੇਰ", "ਸਵੇਰੇ"].map(fold);
-const AFTERNOON = ["afternoon", "दोपहर", "ਦੁਪਹਿਰ"].map(fold);
+const MORNING = ["morning", "subah", "सुबह", "सवेरे", "सवेरा", "तड़के", "ਸਵੇਰ", "ਸਵੇਰੇ"].map(fold);
+const AFTERNOON = ["afternoon", "dopahar", "दोपहर", "ਦੁਪਹਿਰ"].map(fold);
 const EVENING = ["evening", "shaam", "sham", "शाम", "ਸ਼ਾਮ"].map(fold);
 const NIGHT = ["night", "रात", "रात्रि", "ਰਾਤ"].map(fold);
 const WEEKEND = ["weekend", "वीकेंड", "वीकएंड", "ਵੀਕਐਂਡ"].map(fold);
@@ -395,6 +395,15 @@ function scanQuantities(tokens: string[]): {
   return { partySize, time };
 }
 
+function textWithoutName(text: string, name: string | null): string {
+  if (!name) return text;
+  const source = text.normalize("NFC");
+  const target = name.normalize("NFC");
+  const at = source.toLowerCase().indexOf(target.toLowerCase());
+  if (at < 0) return text;
+  return `${source.slice(0, at)} ${source.slice(at + target.length)}`;
+}
+
 function periodFromTokens(tokens: string[]): DayPeriod | null {
   let period: DayPeriod | null = null;
   for (const token of tokens) {
@@ -533,14 +542,18 @@ function nameBesidePhone(source: string): string | null {
   if (!match || match.index == null) return null;
   const before = source.slice(0, match.index);
   const segment = (before.split(/[।.!?]/u).at(-1) ?? before).replace(/[,，:：]\s*$/u, "").trim();
-  if (!segment || segment.split(/\s+/).length > 4) return null;
-  return cleanName(segment);
+  if (segment && segment.split(/\s+/).length <= 4) {
+    const direct = cleanName(segment);
+    if (direct) return direct;
+  }
+  const introduced = segment.match(/\bfor\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})$/iu);
+  return introduced ? cleanName(introduced[1] ?? "") : null;
 }
 
 const NAME_FILLERS = new Set(["now", "already", "actually", "just", "please", "ji", "जी", "ਜੀ", "plz", "अब", "ਹੁਣ"].map(fold));
 
 const NAME_JUNK = new Set(
-  ["thanks", "thank", "thanku", "given", "here", "before", "plus", "hold", "on", "batch", "evening", "morning", "weekend", "as", "shaam", "sham"].map(fold),
+  ["thanks", "thank", "thanku", "given", "here", "before", "plus", "hold", "on", "batch", "weekend", "as", "minute"].map(fold),
 );
 
 function stripNameFillers(value: string): string {
@@ -648,7 +661,7 @@ export function explicitMetaOnly(text: string): boolean {
 const LONE_NOT_YES = new Set(["spelling", "only", "there", "all", "mine"].map(fold));
 
 const EXTRA_YES = new Set(
-  ["looks good", "all good", "that is correct", "that is right", "सब सही है", "सब सही", "sab sahi", "sab sahi hai"].map((phrase) => fold(phrase)),
+  ["looks good", "all good", "that is correct", "that is right", "सब सही है", "सब सही", "sab sahi", "sab sahi hai", "ਸਭ ਸਹੀ ਹੈ", "ਸਭ ਸਹੀ"].map((phrase) => fold(phrase)),
 );
 
 export function isLoneWeakConfirm(text: string): boolean {
@@ -769,8 +782,6 @@ export function isPersonName(value: string): boolean {
     "and",
     "class",
     "medical",
-    "morning",
-    "evening",
     "weekend",
     "tomorrow",
     "today",
@@ -786,8 +797,6 @@ export function isPersonName(value: string): boolean {
     "कल",
     "आज",
     "बजे",
-    "सुबह",
-    "शाम",
     "ट्रायल",
     "बुक",
     "क्लास",
@@ -948,9 +957,14 @@ export function isPersonName(value: string): boolean {
       "ਪਿਤਾ",
     ].map(fold),
   );
+  if (/^(?:one|ek)\s+minutes?$/i.test(fold(name))) return false;
   if (words.some((word) => blocked.has(fold(word)) || RESERVED_NAMES.has(fold(word)))) return false;
   const honorifics = new Set(["ji", "जी", "ਜੀ"].map(fold));
-  const given = words.filter((word) => !titles.has(fold(word)) && !honorifics.has(fold(word)));
+  const particles = new Set(["ka", "ke", "ki", "ko", "nu", "da", "de", "di", "wala", "का", "के", "की", "को", "वाला", "ਦਾ", "ਦੇ", "ਦੀ", "ਨੂੰ", "ਵਾਲਾ"].map(fold));
+  const timeOfDay = new Set([...MORNING, ...AFTERNOON, ...EVENING, ...NIGHT, ...WEEKEND]);
+  const given = words.filter(
+    (word) => !titles.has(fold(word)) && !honorifics.has(fold(word)) && !timeOfDay.has(fold(word)) && !particles.has(fold(word)),
+  );
   return given.length > 0;
 }
 
@@ -1172,6 +1186,7 @@ export function isOnlineQuestion(text: string): boolean {
 export function isQuestionForm(text: string): boolean {
   if (/[?？]/.test(text)) return true;
   const folded = text.normalize("NFC").trim().toLowerCase();
+  if (/^(?:do not|don't|dont)\b/u.test(folded)) return false;
   if (/^(?:is|are|does|do|what|when|which|how|kya)\b/u.test(folded)) return true;
   return /क्या|कब|ਕੀ|ਕਦੋਂ/u.test(text);
 }
@@ -1266,15 +1281,15 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
 
   const courses = matchCourses(prepared);
   const { partySize, time } = scanQuantities(tokens);
-  const period = periodFromTokens(tokens);
-  const batch = batchFrom(period, time);
   const phone = extractPhone(prepared);
   const named = extractName(prepared);
+  const plainUtterance = prepared.trim().replace(/[।.!?]+$/u, "");
+  const nameSpan = named.name ?? (isPersonName(plainUtterance) ? plainUtterance : null);
+  const period = periodFromTokens(tokenize(textWithoutName(prepared, nameSpan)));
+  const batch = batchFrom(period, time);
   const date = extractDate(prepared, now);
 
-  const askingPhone =
-    hasAny(prepared, PHONE_ASK) &&
-    !(phone && hasAny(prepared, ["my phone", "my number", "मेरा नंबर", "मेरा फोन", "ਮੇਰਾ ਨੰਬਰ", "ਮੇਰਾ ਫੋਨ"]));
+  const askingPhone = !phone && hasAny(prepared, PHONE_ASK);
 
   let intent: Intent = "unknown";
   if (isStaffQuestion(prepared) && !isBookingCommand(prepared)) intent = "unknown";
