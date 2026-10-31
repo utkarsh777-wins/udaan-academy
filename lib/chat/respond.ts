@@ -41,7 +41,6 @@ export type Draft = {
   confirming?: boolean;
   pendingName?: string;
   pendingTimeName?: string;
-  nameConfirmed?: boolean;
   name?: string;
   phone?: string;
   email?: string;
@@ -85,15 +84,12 @@ export function counsel(options: {
   if (incoming.pendingTimeName && !isSubstantiveQuestion(options.text)) {
     const pendingTimeName = incoming.pendingTimeName;
     if (isAffirmative(options.text) || explicitConfirmation(options.text)) {
-      return resumeDraft(
-        { ...incoming, name: pendingTimeName, nameConfirmed: true, pendingTimeName: undefined, active: true },
-        language,
-      );
+      return resumeDraft({ ...incoming, name: pendingTimeName, pendingTimeName: undefined, active: true }, language);
     }
     if (startsWithNo(options.text)) {
       return {
         reply: askFor("name", language),
-        draft: { ...incoming, pendingTimeName: undefined, name: undefined, nameConfirmed: undefined, active: true },
+        draft: { ...incoming, pendingTimeName: undefined, name: undefined, active: true },
         ready: false,
         intent: "book",
       };
@@ -267,20 +263,11 @@ export function counsel(options: {
     if (taken.phone) named.phone = taken.phone;
     if (taken.course) named.course = taken.course;
     if (taken.date) named.date = taken.date;
-    if (taken.batch === "weekend" && named.course && !isBatchOnCourse(named.course, "weekend")) {
-      if (taken.name && !taken.timeName) named.name = taken.name;
-      return {
-        reply: weekendMissing(language),
-        draft: named,
-        ready: false,
-        intent: "book",
-      };
-    }
     if (taken.batch && (named.course ? isBatchOnCourse(named.course, taken.batch) : true)) named.batch = taken.batch;
     if (taken.timeName && taken.name) {
       return {
         reply: timeNameQuestion(language, taken.name),
-        draft: { ...named, pendingTimeName: taken.name, name: undefined, nameConfirmed: false },
+        draft: { ...named, pendingTimeName: taken.name, name: undefined },
         ready: false,
         intent: "book",
       };
@@ -294,7 +281,6 @@ export function counsel(options: {
       };
     }
     named.name = taken.name;
-    named.nameConfirmed = true;
     return resumeDraft(named, language);
   }
 
@@ -321,7 +307,7 @@ export function counsel(options: {
   }
 
   const merged = {
-    ...mergeDraft(base, parsed, options.text, mayApplyBatch(options.text, base, Boolean(incoming.confirming))),
+    ...mergeDraft(base, parsed, options.text),
     active: true,
     confirming: false,
   };
@@ -575,12 +561,6 @@ function nameAfterDecline(text: string): string | null {
   const rest = text.split(/[,，]/u).slice(1).join(" ").trim();
   if (!rest || specifiesFieldChange(parseUtterance(rest))) return null;
   return normalisePersonName(rest);
-}
-
-function weekendMissing(language: Language): string {
-  if (language === "hi") return "इस कोर्स में वीकेंड बैच नहीं है। कौन सा बैच ठीक रहेगा — सुबह या शाम?";
-  if (language === "pa") return "ਇਸ ਕੋਰਸ ਵਿੱਚ ਵੀਕਐਂਡ ਬੈਚ ਨਹੀਂ ਹੈ। ਕਿਹੜਾ ਬੈਚ ਠੀਕ ਰਹੇਗਾ — ਸਵੇਰ ਜਾਂ ਸ਼ਾਮ?";
-  return "This course has no weekend batch. Which batch — morning or evening?";
 }
 
 function timeNameQuestion(language: Language, name: string): string {
@@ -1160,14 +1140,7 @@ function summaryReply(draft: Draft, language: Language): string {
   return [finish(language, line), academy.counsellor.confirmAsk[language]].join(" ");
 }
 
-function mayApplyBatch(text: string, draft: Draft, confirming: boolean): boolean {
-  void text;
-  void confirming;
-  if (hasStarted(draft) && !draft.name) return false;
-  return true;
-}
-
-function mergeDraft(draft: Draft, parsed: ParseResult, text: string, applyBatch: boolean): Draft {
+function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
   const next: Draft = { ...draft, confirming: false };
   const pending = firstMissing(next);
   if (parsed.nameExplicit && parsed.name && !next.name) next.name = parsed.name;
@@ -1178,8 +1151,8 @@ function mergeDraft(draft: Draft, parsed: ParseResult, text: string, applyBatch:
   }
   if (parsed.phone) next.phone = parsed.phone;
   if (parsed.courses.length === 1) next.course = parsed.courses[0];
-  if (applyBatch && parsed.batch && isBatchOnCourse(next.course, parsed.batch)) next.batch = parsed.batch;
-  else if (applyBatch && parsed.batch && !next.course) next.batch = parsed.batch;
+  if (parsed.batch && isBatchOnCourse(next.course, parsed.batch)) next.batch = parsed.batch;
+  else if (parsed.batch && !next.course) next.batch = parsed.batch;
   if (parsed.date) next.date = parsed.date;
   if (next.course && next.batch && !isBatchOnCourse(next.course, next.batch)) {
     next.batch = undefined;

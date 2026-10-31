@@ -97,7 +97,16 @@ describe("POST /api/bookings", () => {
         }
       }
     }
-    for (const name of ["hmm", "test", "booking"]) {
+    for (const name of ["Nanak", "Ona"]) {
+      phone += 1;
+      const kept = await submitBooking(payload(String(phone), { name }), {
+        ip: `10.8.${phone % 200}.1`,
+        now,
+        webhookUrl: null,
+      });
+      expect(kept.ok, name).toBe(true);
+    }
+    for (const name of ["hmm", "test", "booking", "later", "skip", "na", "none", "online", "Punjabi", "interested"]) {
       const rejected = await submitBooking(payload("9876610999", { name }), { ip: "10.4.0.2", now, webhookUrl: null });
       expect(rejected.ok, name).toBe(false);
       if (!rejected.ok) expect(rejected.fields, name).toContain("name");

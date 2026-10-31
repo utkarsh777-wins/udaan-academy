@@ -122,7 +122,27 @@ const NIGHT = ["night", "रात", "रात्रि", "ਰਾਤ"].map(fold
 const WEEKEND = ["weekend", "वीकेंड", "वीकएंड", "ਵੀਕਐਂਡ"].map(fold);
 
 const SHARED_NAME_JUNK = new Set(
-  ["hmm", "hmmm", "test", "booking", "student", "help", "name", "asdf", "guest", "india", "mera naam"].map(fold),
+  [
+    "hmm",
+    "hmmm",
+    "test",
+    "booking",
+    "student",
+    "help",
+    "name",
+    "asdf",
+    "guest",
+    "india",
+    "mera naam",
+    "later",
+    "skip",
+    "na",
+    "naah",
+    "none",
+    "online",
+    "punjabi",
+    "interested",
+  ].map(fold),
 );
 const API_NAME_JUNK = new Set(["hmm", "hmmm", "test", "booking"].map(fold));
 
@@ -439,7 +459,7 @@ function isBatchAnswer(text: string): boolean {
 }
 
 const EXPLICIT_NAME_LEADS = [
-  /^(?:the name is|my name is|mera naam|name is|this is|i am)\s+/iu,
+  /^(?:the name is|my name is|mera naam|name is|this is|i am|change (?:the )?name to|call me|for)\s+/iu,
   /^(?:i['’]?m|im|it['’]?s|its)\s+/iu,
   /^(?:मेरा नाम|ਮੇਰਾ ਨਾਂ|ਮੇਰਾ ਨਾਮ)\s+/u,
   /^(?:name|नाम)\s*[:：]\s*/iu,
@@ -478,19 +498,52 @@ export function isLoneTimeName(name: string): boolean {
   return words.length === 1 && PERSONAL_TIME_NAMES.has(fold(words[0] ?? ""));
 }
 
-export function isAcceptableBookingName(name: string): boolean {
-  return isPersonName(name);
-}
-
 export function normalisePersonName(value: string): string | null {
   return cleanName(value);
 }
 
+const GREETING_PHRASES = [
+  "good morning",
+  "good afternoon",
+  "good evening",
+  "good night",
+  "shubh sandhya",
+  "shubh savera",
+  "shubh subah",
+  "shubh ratri",
+  "shubh raatri",
+  "sat sri akal",
+  "sat shri akal",
+  "suprabhat",
+  "सुप्रभात",
+  "शुभ संध्या",
+  "शुभ सुबह",
+  "शुभ रात्रि",
+  "ਸਤ ਸ੍ਰੀ ਅਕਾਲ",
+  "ਸ਼ੁੱਭ ਸਵੇਰ",
+  "hello",
+  "namaste",
+  "hey",
+  "hi",
+  "gm",
+  "ge",
+];
+
+function stripGreetings(text: string): string {
+  let cleaned = text;
+  for (const phrase of GREETING_PHRASES) {
+    const pattern = new RegExp(`(?<![\\p{L}\\p{M}])${escapeRegExp(phrase)}(?![\\p{L}\\p{M}])`, "giu");
+    cleaned = cleaned.replace(pattern, " ");
+  }
+  return cleaned;
+}
+
 function resolvePeriod(text: string): DayPeriod | null {
-  if (isBatchAnswer(text) || isBookingCommand(text)) return periodFromTokens(tokenize(text));
-  const plain = text.trim().replace(/[।.!?]+$/u, "");
+  const cleaned = stripGreetings(text);
+  if (isBatchAnswer(cleaned) || isBookingCommand(cleaned)) return periodFromTokens(tokenize(cleaned));
+  const plain = cleaned.trim().replace(/[।.!?]+$/u, "");
   if (isPersonName(plain) && !mentionsBatchWord(plain)) return null;
-  return periodFromTokens(tokenize(text));
+  return periodFromTokens(tokenize(cleaned));
 }
 
 function periodFromTokens(tokens: string[]): DayPeriod | null {
@@ -700,7 +753,7 @@ const TRAILING_TIME =
   /^(.*?)(?:[,，]\s*|\s+)(morning|evening|afternoon|weekend|subah|savera|sandhya|dopahar|shaam|sham|सुबह|सवेरे|सवेरा|दोपहर|शाम|वीकेंड|वीकएंड|ਸਵੇਰੇ?|ਦੁਪਹਿਰ|ਸ਼ਾਮ|ਵੀਕਐਂਡ)(?:\s+(?:ka|ke|ki|का|के|की|ਦਾ|ਦੇ|ਦੀ))?(?:\s+(?:batch|बैच|ਬੈਚ))?$/iu;
 
 const EXPLICIT_NAME_LEAD =
-  /^(?:my name is|the name is|name is|change (?:the )?name to|call me|mera naam|for|मेरा नाम|ਮੇਰਾ ਨਾਂ|ਮੇਰਾ ਨਾਮ|नाम|ਨਾਂ)\b/iu;
+  /^(?:my name is|the name is|name is|change (?:the )?name to|call me|mera naam|for|मेरा नाम|ਮੇਰਾ ਨਾਂ|ਮੇਰਾ ਨਾਮ|नाम|ਨਾਂ)(?![\p{L}\p{M}])/iu;
 
 export type NameReply = {
   name: string | null;
@@ -732,11 +785,12 @@ export function readNameReply(text: string, now = new Date()): NameReply {
   const phone = extractPhone(trimmed);
   let source = trimmed;
   if (phone) {
-    const at = fold(trimmed).search(/(?<!\d)(?:\+?91[\s-]*|0)?[6-9](?:[\s-]*\d){9}(?!\d)/);
-    if (at >= 0) source = trimmed.slice(0, at);
+    const match = fold(trimmed).match(/(?<!\d)(?:\+?91[\s-]*|0)?[6-9](?:[\s-]*\d){9}(?!\d)/);
+    if (match && match.index != null) {
+      source = `${trimmed.slice(0, match.index)} ${trimmed.slice(match.index + match[0].length)}`;
+    }
     source = source
-      .replace(/(?:[,，]\s*)?(?:phone|ph|number|फोन|ਫੋਨ|नंबर|ਨੰਬਰ)\s*$/iu, "")
-      .replace(/[,，]\s*$/u, "")
+      .replace(/(?:[,，]\s*)?(?:phone|ph|number|फोन|ਫੋਨ|नंबर|ਨੰਬਰ)(?![\p{L}\p{M}])/giu, " ")
       .replace(/^\s*for\s+/iu, "")
       .trim();
   }

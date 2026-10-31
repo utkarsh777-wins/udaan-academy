@@ -75,7 +75,6 @@ export async function POST(request: Request) {
           date: result.draft.date,
           language,
           source: "chat",
-          nameConfirmed: result.draft.nameConfirmed === true,
         }),
       }),
     );
@@ -157,7 +156,6 @@ function sanitizeDraft(value: unknown): Draft {
   if (typeof body.name === "string") draft.name = body.name.slice(0, 80);
   if (typeof body.pendingName === "string" && body.pendingName.trim()) draft.pendingName = body.pendingName.trim().slice(0, 80);
   if (typeof body.pendingTimeName === "string" && body.pendingTimeName.trim()) draft.pendingTimeName = body.pendingTimeName.trim().slice(0, 80);
-  if (body.nameConfirmed === true) draft.nameConfirmed = true;
   if (typeof body.phone === "string") draft.phone = body.phone.slice(0, 20);
   if (typeof body.course === "string") draft.course = body.course.slice(0, 60);
   if (body.batch === "morning" || body.batch === "evening" || body.batch === "weekend") draft.batch = body.batch;
@@ -183,7 +181,6 @@ function clearFields(draft: Draft, fields?: string[]): Draft {
   for (const field of fields ?? []) {
     if (field === "name") {
       next.name = undefined;
-      next.nameConfirmed = undefined;
       next.pendingTimeName = undefined;
     }
     if (field === "phone") next.phone = undefined;
