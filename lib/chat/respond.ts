@@ -18,13 +18,13 @@ import {
   explicitNameRejection,
   isBareWrong,
   mentionsBatchWord,
+  normalisePersonName,
   isLoneWeakConfirm,
   fold,
   includesTerm,
   isBookingCommand,
   isDurationQuestion,
   isOnlineQuestion,
-  isPersonName,
   isQuestionForm,
   isStaffQuestion,
   isTrialContentQuestion,
@@ -81,6 +81,20 @@ export function counsel(options: {
 
   if (incoming.pendingName) {
     const pendingName = incoming.pendingName;
+    if (startsWithNo(options.text)) {
+      const rest = options.text.split(/[,，]/u).slice(1).join(" ").trim();
+      const kept = { ...incoming, pendingName: undefined };
+      if (rest && specifiesFieldChange(parseUtterance(rest, now))) {
+        const follow = counsel({ text: rest, language, draft: kept, now });
+        return {
+          reply: follow.reply,
+          draft: { ...follow.draft, name: incoming.name, pendingName: undefined },
+          ready: false,
+          intent: "book",
+        };
+      }
+      return resumeDraft(kept, language);
+    }
     const pieces = options.text.split(/\band\b|[,，]/iu).map((part) => part.trim()).filter(Boolean);
     const yesPart = isRenameYes(options.text, pendingName) || pieces.some((part) => isRenameYes(part, pendingName));
     if (yesPart && specifiesFieldChange(parsed)) {
@@ -90,10 +104,18 @@ export function counsel(options: {
     } else if (isRenameNo(options.text)) {
       return resumeDraft({ ...incoming, pendingName: undefined }, language);
     } else if (isRenameBypass(options.text, parsed, pendingName)) {
+      const question = isSubstantiveQuestion(options.text) && !specifiesFieldChange(parsed);
+      if (question) {
+        return {
+          reply: withOneQuestion(spokenAnswer(parsed, options.text, language), renameQuestion(language, pendingName)),
+          draft: { ...incoming, pendingName, active: true },
+          ready: false,
+          intent: "book",
+        };
+      }
       const follow = counsel({ text: options.text, language, draft: { ...incoming, pendingName: undefined }, now });
-      const fieldOnly = specifiesFieldChange(parsed) && !isSubstantiveQuestion(options.text);
       return {
-        reply: fieldOnly ? renameQuestion(language, pendingName) : [follow.reply, renameQuestion(language, pendingName)].filter(Boolean).join(" "),
+        reply: renameQuestion(language, pendingName),
         draft: { ...follow.draft, name: incoming.name, pendingName, active: true, confirming: false },
         ready: false,
         intent: "book",
@@ -210,12 +232,14 @@ export function counsel(options: {
 
   const base = incoming.confirming ? { ...incoming, confirming: false } : incoming;
   const fillsBooking = Boolean(
-    parsed.name && [Boolean(parsed.phone), parsed.courses.length === 1, Boolean(parsed.batch), Boolean(parsed.date)].filter(Boolean).length >= 2,
+    !isSubstantiveQuestion(options.text) &&
+      parsed.name &&
+      [Boolean(parsed.phone), parsed.courses.length === 1, Boolean(parsed.batch), Boolean(parsed.date)].filter(Boolean).length >= 2,
   );
   const booking = parsed.intent === "book" || hasStarted(base) || incoming.confirming || fillsBooking;
   if (!booking) {
-    const stated = explicitName(options.text);
-    const keepName = Boolean(stated && (isSubstantiveQuestion(options.text) || isOnlineQuestion(options.text)));
+    const stated = nameWithQuestion(options.text);
+    const keepName = Boolean(stated);
     const kept = keepName ? { ...incoming, name: stated ?? undefined, active: true } : incoming;
     const body = answer(parsed, options.text, language);
     const missing = keepName ? firstMissing(kept) : null;
@@ -239,6 +263,22 @@ export function counsel(options: {
     return {
       reply: askFor(namedField, language),
       draft: cleared,
+      ready: false,
+      intent: "book",
+    };
+  }
+  if (
+    incoming.confirming &&
+    parsed.batch &&
+    parsed.batch === base.batch &&
+    !parsed.phone &&
+    !parsed.date &&
+    parsed.courses.length === 0 &&
+    !(parsed.name && fold(parsed.name) !== fold(base.name ?? ""))
+  ) {
+    return {
+      reply: summaryReply({ ...base, confirming: true }, language),
+      draft: { ...base, confirming: true, active: true },
       ready: false,
       intent: "book",
     };
@@ -349,7 +389,6 @@ const CANCEL_PHRASES = [
   "never mind",
   "nevermind",
   "forget it",
-  "रुको",
   "रुकिए",
   "रद्द",
   "रद्द करो",
@@ -362,7 +401,6 @@ const CANCEL_PHRASES = [
   "कैंसिल कर दो",
   "छोड़ो",
   "छोड़ दो",
-  "ਰੁਕੋ",
   "ਰੱਦ",
   "ਰੱਦ ਕਰੋ",
   "ਰੱਦ ਕਰ ਦਿਓ",
@@ -372,7 +410,7 @@ const CANCEL_PHRASES = [
 ].map((phrase) => phrase.normalize("NFC").toLowerCase());
 
 const CANCEL_TOKENS = new Set(
-  ["cancel", "stop", "rehne", "रुको", "रुकिए", "रद्द", "कैंसल", "कैंसिल", "छोड़ो", "ਰੁਕੋ", "ਰੱਦ", "ਛੱਡੋ", "ਕੈਂਸਲ"].map((word) =>
+  ["cancel", "stop", "rehne", "रुकिए", "रद्द", "कैंसल", "कैंसिल", "छोड़ो", "ਰੱਦ", "ਛੱਡੋ", "ਕੈਂਸਲ"].map((word) =>
     word.normalize("NFC").toLowerCase(),
   ),
 );
@@ -395,22 +433,15 @@ function matchesCancel(source: string): boolean {
   return meaningful.every((word) => CANCEL_TOKENS.has(word));
 }
 
-function isCancel(text: string): boolean {
-  if (/[?？]/.test(text)) return false;
-  const cleaned = text
-    .normalize("NFC")
-    .replace(/[.!।]+/g, " ")
-    .replace(/[,，]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+function clauseIsNegated(text: string): boolean {
+  return ["don't", "dont", "do not", "no need", "not", "mat", "मत", "नहीं", "ਨਾ", "ਨਹੀਂ"].some((word) => includesTerm(text, word));
+}
+
+function clauseCancels(text: string): boolean {
+  if (/[?？]/.test(text) || clauseIsNegated(text)) return false;
+  const cleaned = text.normalize("NFC").replace(/[.!।]+/g, " ").replace(/[,，]+/g, " ").replace(/\s+/g, " ").trim();
   const folded = cleaned.toLowerCase();
   if (/^(?:what|is|which|why|how|when|where|who|can|kya|क्या|ਕੀ)\b/u.test(folded)) return false;
-  if (includesTerm(cleaned, "what") || includesTerm(cleaned, "which") || includesTerm(cleaned, "kya") || cleaned.includes("क्या") || cleaned.includes("ਕੀ")) {
-    return false;
-  }
-  if (["don't", "dont", "do not", "no need", "not", "mat", "मत", "नहीं", "ਨਾ", "ਨਹੀਂ"].some((word) => includesTerm(cleaned, word))) {
-    return false;
-  }
   const withoutBusStop = folded.replace(/\bbus stop\b/g, " ").replace(/\s+/g, " ").trim();
   const lead = withoutBusStop
     .replace(/^(?:please|i would like to|i want to|no|nahi|nahin)\s+/u, "")
@@ -424,13 +455,29 @@ function isCancel(text: string): boolean {
     .replace(/\s+/g, " ")
     .trim();
   if (matchesCancel(stripped)) return true;
-  if (confirmPlusCancel(folded)) return true;
+  return confirmPlusCancel(folded);
+}
+
+function isCancel(text: string): boolean {
+  if (/[?？]/.test(text)) return false;
+  const cleaned = text.normalize("NFC").replace(/[.!।]+/g, " ").replace(/[,，]+/g, " ").replace(/\s+/g, " ").trim();
+  const folded = cleaned.toLowerCase();
+  if (/^(?:what|is|which|why|how|when|where|who|can|kya|क्या|ਕੀ)\b/u.test(folded)) return false;
+  if (includesTerm(cleaned, "what") || includesTerm(cleaned, "which") || includesTerm(cleaned, "kya") || cleaned.includes("क्या") || cleaned.includes("ਕੀ")) {
+    return false;
+  }
   const clauses = text
     .normalize("NFC")
     .split(/[.?!।,，\n\r]+/u)
     .map((part) => part.trim())
     .filter(Boolean);
-  return clauses.length > 1 && clauses.some((clause) => clause !== text.trim() && isCancel(clause));
+  if (clauses.length > 1 && clauses.some((clause) => clauseCancels(clause))) return true;
+  return clauseCancels(text);
+}
+
+function startsWithNo(text: string): boolean {
+  const first = text.normalize("NFC").trim().split(/[\s,，]+/u)[0]?.toLowerCase() ?? "";
+  return ["no", "nope", "nah", "nahi", "nahin", "नहीं", "नही", "ना", "ਨਹੀਂ", "ਨਾ"].includes(first);
 }
 
 const RENAME_YES = new Set(
@@ -614,10 +661,18 @@ function renameQuestion(language: Language, name: string): string {
   return `Change the name to '${name}'?`;
 }
 
+function withOneQuestion(body: string, question: string): string {
+  const cleaned = body
+    .replace(/\s*Shall I send this\? \(yes \/ no\)|\s*भेज दूँ\? \(हाँ \/ नहीं\)|\s*ਭੇਜ ਦਿਆਂ\? \(ਹਾਂ \/ ਨਹੀਂ\)/gu, "")
+    .trim();
+  if (/\?/.test(cleaned)) return cleaned;
+  return `${cleaned} ${question}`.trim();
+}
+
 function askRename(draft: Draft, name: string, language: Language, preface?: string | null): CounselResult {
   const question = renameQuestion(language, name);
   return {
-    reply: [preface, question].filter(Boolean).join(" "),
+    reply: preface ? withOneQuestion(preface, question) : question,
     draft: { ...draft, pendingName: name, active: true },
     ready: false,
     intent: "book",
@@ -1415,15 +1470,8 @@ function stripPunctuation(value: string): string {
 }
 
 function spokenName(text: string): string | null {
-  const plain = stripPunctuation(text);
-  const core = plain
-    .replace(/^(?:i'?m|i am)\s+/iu, "")
-    .replace(/^(?:मैं|main)\s+/u, "")
-    .replace(/^ਮੈਂ\s+/u, "")
-    .replace(/(?:\s+(?:हूँ|हूं|हैं|ਹਾਂ))+$/u, "")
-    .trim();
-  if (/^(?:i'?m|i am|मैं|main|ਮੈਂ)\b/iu.test(plain)) return isPersonName(core) ? core : null;
-  return isPersonName(plain) ? plain : null;
+  if (mentionsBatchWord(text)) return null;
+  return normalisePersonName(stripPunctuation(text));
 }
 
 export function speak(language: Language, sentences: Array<string | null | undefined | false>): string {

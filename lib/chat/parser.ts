@@ -112,7 +112,7 @@ const CLOCK_MARKERS = new Set(
   ),
 );
 
-const MORNING = ["morning", "subah", "सुबह", "सवेरे", "सवेरा", "तड़के", "ਸਵੇਰ", "ਸਵੇਰੇ"].map(fold);
+const MORNING = ["morning", "subah", "savera", "सुबह", "सवेरे", "सवेरा", "तड़के", "ਸਵੇਰ", "ਸਵੇਰੇ"].map(fold);
 const AFTERNOON = ["afternoon", "dopahar", "दोपहर", "ਦੁਪਹਿਰ"].map(fold);
 const EVENING = ["evening", "shaam", "sham", "शाम", "ਸ਼ਾਮ"].map(fold);
 const NIGHT = ["night", "रात", "रात्रि", "ਰਾਤ"].map(fold);
@@ -425,17 +425,37 @@ function peelPerson(name: string | null): string | null {
   return trailed.name ?? name;
 }
 
+function stripNameLeads(value: string): string {
+  let text = value.normalize("NFC").trim();
+  const lead = /^(?:i'?m|i am|it'?s|it is|main|मैं|ਮੈਂ|name|naam|नाम|ਨਾਂ|ਨਾਮ)\s+/iu;
+  let previous = "";
+  while (text && text !== previous) {
+    previous = text;
+    text = text.replace(lead, "").trim();
+  }
+  return text;
+}
+
+function acceptName(value: string, allowMixed = false): string | null {
+  return cleanName(stripNameLeads(value), allowMixed);
+}
+
+export function normalisePersonName(value: string, allowMixed = false): string | null {
+  return peelPerson(acceptName(value, allowMixed));
+}
+
 function trailingNameAndPeriod(text: string): { name: string | null; period: DayPeriod | null } {
   const match = text
     .trim()
     .match(
-      /^(.*?)(?:[,，]\s*|\s+)(morning|evening|afternoon|subah|dopahar|shaam|sham|सुबह|दोपहर|शाम|ਸਵੇਰੇ?|ਦੁਪਹਿਰ|ਸ਼ਾਮ)(?:\s+(?:batch|बैच|ਬੈਚ))?$/iu,
+      /^(.*?)(?:[,，]\s*|\s+)(morning|evening|afternoon|subah|dopahar|savera|shaam|sham|सुबह|दोपहर|शाम|ਸਵੇਰੇ?|ਦੁਪਹਿਰ|ਸ਼ਾਮ)(?:\s+(?:ka|ke|का|के|ਦਾ|ਦੇ|wala|वाला|ਵਾਲਾ))?(?:\s+(?:batch|बैच|ਬੈਚ))?$/iu,
     );
   if (!match) return { name: null, period: null };
   const prefix = match[1].replace(/[,，]\s*$/u, "").trim();
   const period = periodOf(match[2] ?? "");
-  if (!prefix || !isPersonName(prefix)) return { name: null, period: null };
-  return { name: prefix, period };
+  const name = prefix ? acceptName(prefix) : null;
+  if (!name) return { name: null, period: null };
+  return { name, period };
 }
 
 function resolvePeriod(text: string): DayPeriod | null {
@@ -550,7 +570,7 @@ export function explicitName(text: string): string | null {
     for (const { pattern, allowMixed } of NAME_PATTERNS) {
       const match = source.match(pattern);
       if (!match) continue;
-      const name = peelPerson(cleanName(match[1] ?? "", allowMixed));
+      const name = normalisePersonName(match[1] ?? "", allowMixed);
       if (name) return name;
     }
   }
@@ -567,7 +587,7 @@ function fillOnlyName(text: string): string | null {
   for (const pattern of patterns) {
     const match = source.match(pattern);
     if (!match) continue;
-    const name = peelPerson(cleanName(match[1]));
+    const name = normalisePersonName(match[1] ?? "");
     if (name) return name;
   }
   return null;
@@ -586,11 +606,13 @@ function nameBesidePhone(source: string): string | null {
   const before = source.slice(0, match.index);
   const segment = (before.split(/[।.!?]/u).at(-1) ?? before).replace(/[,，:：]\s*$/u, "").trim();
   if (segment && segment.split(/\s+/).length <= 4) {
-    const direct = cleanName(segment);
+    const direct = normalisePersonName(segment);
     if (direct) return direct;
   }
-  const introduced = segment.match(/\bfor\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})$/iu);
-  return introduced ? cleanName(introduced[1] ?? "") : null;
+  const introduced = before.match(
+    /\bfor\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60}?)(?=\s*(?:,\s*)?(?:phone|ph|फोन|ਫੋਨ|नंबर|ਨੰਬਰ)\b|\s*,|\s+\d)/iu,
+  );
+  return introduced ? normalisePersonName(introduced[1] ?? "") : null;
 }
 
 const NAME_FILLERS = new Set(["now", "already", "actually", "just", "please", "ji", "जी", "ਜੀ", "plz", "अब", "ਹੁਣ"].map(fold));
@@ -833,6 +855,11 @@ export function isPersonName(value: string): boolean {
     "no",
     "ok",
     "okay",
+    "hi",
+    "hello",
+    "hey",
+    "namaste",
+    "namaskar",
     "trial",
     "हाँ",
     "हां",
@@ -1069,6 +1096,7 @@ function clauseNegatesDay(clause: string): boolean {
   const folded = fold(clause);
   return (
     /\b(?:busy|unable)\b/.test(folded) ||
+    /\bnot\b/.test(folded) ||
     /\bnot free\b/.test(folded) ||
     /\b(?:can't|cannot|cant)\b/.test(folded) ||
     folded.includes("व्यस्त") ||

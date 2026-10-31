@@ -359,17 +359,19 @@ describe("blocker regressions", () => {
 
   it("R7 does not take cancel words or hedges as a name, and a question is not a yes", () => {
     const started = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const, date: "2026-11-20" };
-    for (const word of ["cancel", "stop", "रुको", "रद्द"]) {
+    for (const word of ["cancel", "stop", "रद्द"]) {
       const ended = counsel({ text: word, language: "en", draft: started, now });
       expect(ended.ready, word).toBe(false);
       expect(ended.draft.name, word).toBeUndefined();
       expect(ended.draft.course, word).toBeUndefined();
       expect(ended.reply.toLowerCase()).toMatch(/stopped|nothing|रोक|ਨਹੀਂ/);
     }
-    const held = counsel({ text: "ruko", language: "en", draft: started, now });
-    expect(held.ready).toBe(false);
-    expect(held.draft.name).toBe("Simran");
-    expect(held.draft.course).toBe("ielts-pte");
+    for (const word of ["ruko", "रुको", "ਰੁਕੋ"]) {
+      const waited = counsel({ text: word, language: "en", draft: started, now });
+      expect(waited.ready, word).toBe(false);
+      expect(waited.draft.name, word).toBe("Simran");
+      expect(waited.draft.course, word).toBe("ielts-pte");
+    }
     for (const word of ["cancel", "stop", "ruko", "रुको", "रद्द", "wait", "go ahead", "theek hai", "ok"]) {
       const named = counsel({ text: word, language: "en", draft: { active: true }, now });
       expect(named.draft.name, word).toBeUndefined();

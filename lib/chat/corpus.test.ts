@@ -1,8 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/server", () => ({ connection: async () => undefined }));
+
+import { POST as postChat } from "@/app/api/chat/route";
+import { listBookings, resetMemoryAttemptsForTests } from "@/lib/bookings";
 import { counsel, type Draft } from "@/lib/chat/respond";
 
 const now = new Date("2026-10-31T08:00:00.000Z");
 const phone = "9876543210";
+const languages = ["en", "hi", "pa"] as const;
+
+const ask = {
+  name: /name|नाम|ਨਾਮ|ਨਾਂ/i,
+  phone: /phone|फोन|ਫੋਨ/i,
+  batch: /batch|बैच|ਬੈਚ/i,
+  date: /date|तारीख|ਤਾਰੀਖ/i,
+  send: /send|भेज|ਭੇਜ/i,
+  sending: /sending|भेज रही|ਭੇਜ ਰਹੀ/,
+  stopped: /stopped|nothing|रोक|ਰੋਕ|ਨਹੀਂ/i,
+  wrong: /which part is wrong|कौन सी बात गलत|ਕਿਹੜੀ ਗੱਲ ਗਲਤ/i,
+  correctName: /correct name|सही नाम|ਸਹੀ ਨਾਂ/i,
+  change: /which part should I change|क्या बदलना|ਕੀ ਬਦਲਣਾ/i,
+  window: /45/,
+  neet: /neet/i,
+  online: /online|ऑनलाइन|ਔਨਲਾਈਨ/i,
+  fee: /fee|फीस|ਫੀਸ/i,
+};
 
 const bases = {
   name: { active: true, course: "ielts-pte" } satisfies Draft,
@@ -28,6 +54,14 @@ const bases = {
     date: "2026-11-20",
     pendingName: "Aman Gill",
   } satisfies Draft,
+  mid: {
+    active: true,
+    name: "Simran",
+    phone,
+    course: "ielts-pte",
+    batch: "morning" as const,
+    pendingName: "Aman Gill",
+  } satisfies Draft,
 };
 
 type Step = keyof typeof bases;
@@ -40,75 +74,309 @@ type Row = {
   batch: "morning" | "evening" | "weekend" | null;
   sent: boolean;
   next: RegExp;
+  questions: number;
+  pending?: string | null;
+  course?: string;
+};
+
+const kept = {
+  name: "Simran" as string | null,
+  phone: phone as string | null,
+  date: "2026-11-20" as string | null,
+  batch: "morning" as const,
 };
 
 const rows: Row[] = [
-  { step: "name", text: "Sham Singh", name: "Sham Singh", phone: null, date: null, batch: null, sent: false, next: /phone/i },
-  { step: "name", text: "Sham Lal", name: "Sham Lal", phone: null, date: null, batch: null, sent: false, next: /phone/i },
-  { step: "name", text: "Sham Sundar", name: "Sham Sundar", phone: null, date: null, batch: null, sent: false, next: /phone/i },
-  { step: "name", text: "शाम लाल", name: "शाम लाल", phone: null, date: null, batch: null, sent: false, next: /phone/i },
-  { step: "name", text: "ਸ਼ਾਮ ਲਾਲ", name: "ਸ਼ਾਮ ਲਾਲ", phone: null, date: null, batch: null, sent: false, next: /phone/i },
-  { step: "name", text: "मेरा नाम शाम लाल है", name: "शाम लाल", phone: null, date: null, batch: null, sent: false, next: /phone/i },
-  { step: "name", text: "my name is Sham Lal", name: "Sham Lal", phone: null, date: null, batch: null, sent: false, next: /phone/i },
-  { step: "name", text: "I am Sham Sundar", name: "Sham Sundar", phone: null, date: null, batch: null, sent: false, next: /phone/i },
-  { step: "name", text: "Simran morning", name: "Simran", phone: null, date: null, batch: "morning", sent: false, next: /phone/i },
-  { step: "name", text: "Simran, evening batch", name: "Simran", phone: null, date: null, batch: "evening", sent: false, next: /phone/i },
-  { step: "name", text: "evening batch", name: null, phone: null, date: null, batch: "evening", sent: false, next: /name/i },
-  { step: "name", text: "one sec", name: null, phone: null, date: null, batch: null, sent: false, next: /name/i },
-  { step: "name", text: "one minute", name: null, phone: null, date: null, batch: null, sent: false, next: /name/i },
-  { step: "name", text: "I am ready", name: null, phone: null, date: null, batch: null, sent: false, next: /name/i },
-  { step: "name", text: "I am fine", name: null, phone: null, date: null, batch: null, sent: false, next: /name/i },
-  { step: "phone", text: "9876543210", name: "Simran", phone, date: null, batch: null, sent: false, next: /batch/i },
-  { step: "phone", text: "change phone to 9876501234", name: "Simran", phone: "9876501234", date: null, batch: null, sent: false, next: /batch/i },
-  { step: "batch", text: "evening batch", name: "Simran", phone, date: null, batch: "evening", sent: false, next: /date/i },
-  { step: "batch", text: "morning batch", name: "Simran", phone, date: null, batch: "morning", sent: false, next: /date/i },
-  { step: "batch", text: "shaam ka batch", name: "Simran", phone, date: null, batch: "evening", sent: false, next: /date/i },
-  { step: "batch", text: "kal shaam", name: "Simran", phone, date: null, batch: "evening", sent: false, next: /date/i },
-  { step: "batch", text: "evening", name: "Simran", phone, date: null, batch: "evening", sent: false, next: /date/i },
-  { step: "batch", text: "सुबह", name: "Simran", phone, date: null, batch: "morning", sent: false, next: /date/i },
-  { step: "date", text: "3 November", name: "Simran", phone, date: "2026-11-03", batch: "morning", sent: false, next: /send/i },
-  { step: "date", text: "evening batch", name: "Simran", phone, date: null, batch: "evening", sent: false, next: /date/i },
-  { step: "date", text: "change phone to 9876501234", name: "Simran", phone: "9876501234", date: null, batch: "morning", sent: false, next: /date/i },
-  { step: "date", text: "Is the NEET trial class on Saturday?", name: "Simran", phone, date: null, batch: "morning", sent: false, next: /neet/i },
-  { step: "date", text: "wrong", name: "Simran", phone, date: null, batch: "morning", sent: false, next: /which part is wrong/i },
-  { step: "confirm", text: "evening batch", name: "Simran", phone, date: "2026-11-20", batch: "evening", sent: false, next: /send/i },
-  { step: "confirm", text: "evening instead", name: "Simran", phone, date: "2026-11-20", batch: "evening", sent: false, next: /send/i },
-  { step: "confirm", text: "the name is correct", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: true, next: /sending/i },
-  { step: "confirm", text: "I am ready", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: true, next: /sending/i },
-  { step: "confirm", text: "I am fine", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: false, next: /which part|send/i },
-  { step: "confirm", text: "yes please", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: true, next: /sending/i },
-  { step: "confirm", text: "the name is wrong", name: null, phone, date: "2026-11-20", batch: "morning", sent: false, next: /correct name/i },
-  { step: "confirm", text: "my name is now Aman Gill", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: false, next: /Aman Gill/ },
-  { step: "confirm", text: "ਸਭ ਸਹੀ ਹੈ", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: true, next: /sending|ਭੇਜ/ },
-  { step: "confirm", text: "cancel", name: null, phone: null, date: null, batch: null, sent: false, next: /stopped|nothing/i },
-  { step: "confirm", text: "stop and think", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: false, next: /send|which part/i },
-  { step: "confirm", text: "don't cancel", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: false, next: /send|which part/i },
-  { step: "confirm", text: "ruko", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: false, next: /send|which part/i },
-  { step: "rename", text: "correct", name: "Aman Gill", phone, date: "2026-11-20", batch: "morning", sent: false, next: /send/i },
-  { step: "rename", text: "yes please", name: "Aman Gill", phone, date: "2026-11-20", batch: "morning", sent: false, next: /send/i },
-  { step: "rename", text: "no thanks", name: "Simran", phone, date: "2026-11-20", batch: "morning", sent: false, next: /send/i },
-  { step: "rename", text: "correct, evening batch", name: "Aman Gill", phone, date: "2026-11-20", batch: "evening", sent: false, next: /send/i },
-  { step: "rename", text: "correct and evening batch", name: "Aman Gill", phone, date: "2026-11-20", batch: "evening", sent: false, next: /send/i },
+  { step: "name", text: "Sham Singh", name: "Sham Singh", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "Sham Lal", name: "Sham Lal", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "Sham Sundar", name: "Sham Sundar", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "शाम लाल", name: "शाम लाल", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "ਸ਼ਾਮ ਲਾਲ", name: "ਸ਼ਾਮ ਲਾਲ", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "मेरा नाम शाम लाल है", name: "शाम लाल", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "my name is Sham Lal", name: "Sham Lal", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "I am Sham Sundar", name: "Sham Sundar", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "Simran morning", name: "Simran", phone: null, date: null, batch: "morning", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "Simran, evening batch", name: "Simran", phone: null, date: null, batch: "evening", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "I am Simran, morning batch", name: "Simran", phone: null, date: null, batch: "morning", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "main Simran", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "मैं सिमरन", name: "सिमरन", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "ਮੈਂ ਸਿਮਰਨ", name: "ਸਿਮਰਨ", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "it's Simran", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "name Simran", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "Simran ji", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "सिमरन, शाम का बैच", name: "सिमरन", phone: null, date: null, batch: "evening", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "ਸਿਮਰਨ, ਸ਼ਾਮ ਦਾ ਬੈਚ", name: "ਸਿਮਰਨ", phone: null, date: null, batch: "evening", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "evening batch", name: null, phone: null, date: null, batch: "evening", sent: false, next: ask.name, questions: 1 },
+  { step: "name", text: "one sec", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
+  { step: "name", text: "one minute", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
+  { step: "name", text: "hello", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
+  { step: "name", text: "hi", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
+  { step: "name", text: "namaste", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
+  { step: "name", text: "I am ready", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
+  { step: "name", text: "I am fine", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
+  { step: "phone", text: "9876543210", name: "Simran", phone, date: null, batch: null, sent: false, next: ask.batch, questions: 1 },
+  { step: "phone", text: "1234567890", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "phone", text: "change phone to 9876501234", name: "Simran", phone: "9876501234", date: null, batch: null, sent: false, next: ask.batch, questions: 1 },
+  { step: "batch", text: "evening batch", name: "Simran", phone, date: null, batch: "evening", sent: false, next: ask.date, questions: 1 },
+  { step: "batch", text: "morning batch", name: "Simran", phone, date: null, batch: "morning", sent: false, next: ask.date, questions: 1 },
+  { step: "batch", text: "shaam ka batch", name: "Simran", phone, date: null, batch: "evening", sent: false, next: ask.date, questions: 1 },
+  { step: "batch", text: "kal shaam", name: "Simran", phone, date: null, batch: "evening", sent: false, next: ask.date, questions: 1 },
+  { step: "batch", text: "evening", name: "Simran", phone, date: null, batch: "evening", sent: false, next: ask.date, questions: 1 },
+  { step: "batch", text: "सुबह", name: "Simran", phone, date: null, batch: "morning", sent: false, next: ask.date, questions: 1 },
+  { step: "date", text: "3 November", name: "Simran", phone, date: "2026-11-03", batch: "morning", sent: false, next: ask.send, questions: 1 },
+  { step: "date", text: "३ नवंबर", name: "Simran", phone, date: "2026-11-03", batch: "morning", sent: false, next: ask.send, questions: 1 },
+  { step: "date", text: "not Monday, Tuesday", name: "Simran", phone, date: "2026-11-03", batch: "morning", sent: false, next: ask.send, questions: 1 },
+  { step: "date", text: "20 December", name: "Simran", phone, date: null, batch: "morning", sent: false, next: ask.window, questions: 0 },
+  { step: "date", text: "evening batch", name: "Simran", phone, date: null, batch: "evening", sent: false, next: ask.date, questions: 1 },
+  { step: "date", text: "change phone to 9876501234", name: "Simran", phone: "9876501234", date: null, batch: "morning", sent: false, next: ask.date, questions: 1 },
+  { step: "date", text: "Is the NEET trial class on Saturday?", name: "Simran", phone, date: null, batch: "morning", sent: false, next: ask.neet, questions: 1 },
+  { step: "date", text: "wrong", name: "Simran", phone, date: null, batch: "morning", sent: false, next: ask.wrong, questions: 1 },
+  { step: "confirm", text: "evening batch", name: "Simran", phone, date: "2026-11-20", batch: "evening", sent: false, next: ask.send, questions: 1 },
+  { step: "confirm", text: "evening instead", name: "Simran", phone, date: "2026-11-20", batch: "evening", sent: false, next: ask.send, questions: 1 },
+  { step: "confirm", text: "morning", ...kept, sent: false, next: ask.send, questions: 1 },
+  { step: "confirm", text: "morning batch", ...kept, sent: false, next: ask.send, questions: 1 },
+  { step: "confirm", text: "सुबह", ...kept, sent: false, next: ask.send, questions: 1 },
+  { step: "confirm", text: "ਸਵੇਰ", ...kept, sent: false, next: ask.send, questions: 1 },
+  { step: "confirm", text: "NEET instead", ...kept, course: "neet-foundation", sent: false, next: ask.send, questions: 1 },
+  { step: "confirm", text: "the name is correct", ...kept, sent: true, next: ask.sending, questions: 0 },
+  { step: "confirm", text: "I am ready", ...kept, sent: true, next: ask.sending, questions: 0 },
+  { step: "confirm", text: "I am fine", ...kept, sent: false, next: ask.change, questions: 1 },
+  { step: "confirm", text: "yes please", ...kept, sent: true, next: ask.sending, questions: 0 },
+  { step: "confirm", text: "the name is wrong", name: null, phone, date: "2026-11-20", batch: "morning", sent: false, next: ask.correctName, questions: 1 },
+  { step: "confirm", text: "my name is now Aman Gill", ...kept, sent: false, next: /Aman Gill/, questions: 1, pending: "Aman Gill" },
+  { step: "confirm", text: "ਸਭ ਸਹੀ ਹੈ", ...kept, sent: true, next: ask.sending, questions: 0 },
+  { step: "confirm", text: "cancel", name: null, phone: null, date: null, batch: null, sent: false, next: ask.stopped, questions: 0 },
+  { step: "confirm", text: "correct, cancel", name: null, phone: null, date: null, batch: null, sent: false, next: ask.stopped, questions: 0 },
+  { step: "confirm", text: "ruko mat, cancel", name: null, phone: null, date: null, batch: null, sent: false, next: ask.stopped, questions: 0 },
+  { step: "confirm", text: "stop and think", ...kept, sent: false, next: ask.change, questions: 1 },
+  { step: "confirm", text: "don't cancel", ...kept, sent: false, next: ask.change, questions: 1 },
+  { step: "confirm", text: "ruko", ...kept, sent: false, next: ask.change, questions: 1 },
+  { step: "confirm", text: "रुको", ...kept, sent: false, next: ask.change, questions: 1 },
+  { step: "confirm", text: "ਰੁਕੋ", ...kept, sent: false, next: ask.change, questions: 1 },
+  { step: "rename", text: "correct", name: "Aman Gill", phone, date: "2026-11-20", batch: "morning", sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "सही", name: "Aman Gill", phone, date: "2026-11-20", batch: "morning", sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "ਸਹੀ", name: "Aman Gill", phone, date: "2026-11-20", batch: "morning", sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "yes please", name: "Aman Gill", phone, date: "2026-11-20", batch: "morning", sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "no thanks", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "no, correct", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "nope, correct", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "nahi, sahi hai", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "nahin, sahi hai", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "no, same", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "no, fine", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "no, ok", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "नहीं, सही है", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "ना, सही है", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "ਨਹੀਂ, ਸਹੀ ਹੈ", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "ਨਾ, ਸਹੀ ਹੈ", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "no, evening batch", name: "Simran", phone, date: "2026-11-20", batch: "evening", sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "correct, evening batch", name: "Aman Gill", phone, date: "2026-11-20", batch: "evening", sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "correct and evening batch", name: "Aman Gill", phone, date: "2026-11-20", batch: "evening", sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "correct, cancel", name: null, phone: null, date: null, batch: null, sent: false, next: ask.stopped, questions: 0 },
+  { step: "rename", text: "Is the trial online?", ...kept, sent: false, next: ask.online, questions: 1, pending: "Aman Gill" },
+  { step: "mid", text: "no, correct", name: "Simran", phone, date: null, batch: "morning", sent: false, next: ask.date, questions: 1, pending: null },
+  { step: "mid", text: "no, evening batch", name: "Simran", phone, date: null, batch: "evening", sent: false, next: ask.date, questions: 1, pending: null },
+  { step: "mid", text: "नहीं, सही है", name: "Simran", phone, date: null, batch: "morning", sent: false, next: ask.date, questions: 1, pending: null },
 ];
 
-describe("round 8–16 regression corpus", () => {
-  it.each(rows)("$step: $text", (row) => {
-    const result = counsel({ text: row.text, language: "en", draft: bases[row.step], now });
-    expect(result.ready, row.text).toBe(row.sent);
-    expect(result.draft.name ?? null, row.text).toBe(row.name);
-    expect(result.draft.phone ?? null, row.text).toBe(row.phone);
-    expect(result.draft.date ?? null, row.text).toBe(row.date);
-    expect(result.draft.batch ?? null, row.text).toBe(row.batch);
-    expect(result.reply, row.text).toMatch(row.next);
-    if (row.step === "rename" && row.text.startsWith("correct,") === false && row.text.includes("and evening") === false && !row.sent) {
-      expect(result.reply, row.text).not.toMatch(/Change the name.*Shall I send|Shall I send.*Change the name/);
-    }
-  });
+const PEOPLE = [
+  "Sham Singh",
+  "Sham Lal",
+  "Sham Sundar",
+  "शाम लाल",
+  "ਸ਼ਾਮ ਲਾਲ",
+  "Subah Kaur",
+  "Savera Singh",
+  "Sandhya Sharma",
+  "Simran",
+  "Simran Kaur",
+  "Aman Gill",
+  "Navjot Kaur",
+  "Jitesh Kumar",
+  "Karan Singh",
+  "Papa Singh",
+  "Harman Kaur",
+  "Mina Kaur",
+];
 
-  it("fills a one-line booking", () => {
+function captureTexts(name: string): string[] {
+  const introduced = /[\u0900-\u097F]/.test(name)
+    ? `मेरा नाम ${name} है`
+    : /[\u0A00-\u0A7F]/.test(name)
+      ? `ਮੇਰਾ ਨਾਂ ${name} ਹੈ`
+      : `mera naam ${name} hai`;
+  return [
+    name,
+    `my name is ${name}`,
+    `for ${name}, phone ${phone}`,
+    `for ${name} phone ${phone}`,
+    `I am ${name}`,
+    `name: ${name}`,
+    introduced,
+  ];
+}
+
+const JUNK = [
+  "thanks",
+  "thank",
+  "thanku",
+  "thank you",
+  "given",
+  "here",
+  "before",
+  "plus",
+  "hold",
+  "hold on",
+  "on",
+  "as",
+  "minute",
+  "batch",
+  "weekend",
+  "one sec",
+  "one minute",
+  "one second",
+  "hello",
+  "hi",
+  "hey",
+  "namaste",
+  "namaskar",
+];
+
+const CANCELS = [
+  "cancel",
+  "Cancel.",
+  "cancel!",
+  "cancel it",
+  "cancel this",
+  "please cancel",
+  "cancel the booking",
+  "cancel my booking",
+  "cancel the trial",
+  "cancel the request",
+  "I want to cancel",
+  "I would like to cancel",
+  "no, cancel",
+  "just cancel",
+  "ok cancel",
+  "actually cancel",
+  "yes cancel",
+  "all correct and cancel",
+  "correct\ncancel",
+  "ruko mat, cancel",
+  "stop",
+  "stop it",
+  "rehne do",
+  "रहने दो",
+  "never mind",
+  "nevermind",
+  "forget it",
+  "रुकिए",
+  "रद्द",
+  "रद्द करो",
+  "रद्द कर दीजिए",
+  "कैंसल करो",
+  "कैंसिल कर दो",
+  "छोड़ो",
+  "छोड़ दो",
+  "ਰੱਦ ਕਰੋ",
+  "ਬੁਕਿੰਗ ਰੱਦ ਕਰੋ",
+  "ਕੈਂਸਲ ਕਰੋ",
+];
+
+const GUARDS = [
+  "don't cancel",
+  "don't cancel the trial",
+  "dont cancel",
+  "do not cancel",
+  "don't stop",
+  "don't stop go ahead",
+  "no need to cancel",
+  "not cancel",
+  "please don't cancel",
+  "please do not cancel",
+  "do not stop",
+  "don't cancel it",
+  "don't cancel the booking",
+  "don't cancel my booking",
+  "never cancel",
+  "mat cancel",
+  "मत रद्द करो",
+  "रद्द मत करो",
+  "नहीं रद्द करो",
+  "ਰੱਦ ਨਾ ਕਰੋ",
+  "Is there a cancellation fee?",
+  "Which bus stop is nearest?",
+  "what if I need to cancel later?",
+  "can I cancel later?",
+  "What is the IELTS fee?",
+  "Is the trial online?",
+  "How long is the trial?",
+  "Who teaches IELTS?",
+  "What happens in the trial?",
+  "Is the trial free?",
+  "Where is the centre?",
+  "What is the address?",
+  "Do you have a weekend batch?",
+  "When is the morning batch?",
+  "How much is NEET?",
+  "Can I visit the centre?",
+  "Is parking available?",
+  "What is spoken English?",
+  "Which course is for class 10?",
+  "Do you teach Punjabi?",
+  "What are the fees?",
+  "Is there a night batch?",
+  "Can the trial be online?",
+  "Why is the fee this much?",
+  "stop and think",
+  "hello",
+  "hi",
+  "namaste",
+  "hey",
+  "namaskar",
+  "not now",
+  "ruko",
+  "रुको",
+  "ਰੁਕੋ",
+  "wait",
+  "one sec",
+  "one minute",
+  "hold on",
+  "ek minute",
+  "thanks",
+  "thank you",
+  "maybe",
+  "not sure",
+  "perhaps",
+  "let me think",
+  "see you tomorrow",
+];
+
+function questionsIn(reply: string): number {
+  return reply.match(/\?/g)?.length ?? 0;
+}
+
+describe("round 8–17 regression corpus", () => {
+  it.each(rows.flatMap((row) => languages.map((language) => ({ ...row, language }))))(
+    "$language $step: $text",
+    (row) => {
+      const result = counsel({ text: row.text, language: row.language, draft: bases[row.step], now });
+      expect(result.ready, row.text).toBe(row.sent);
+      expect(result.draft.name ?? null, row.text).toBe(row.name);
+      expect(result.draft.phone ?? null, row.text).toBe(row.phone);
+      expect(result.draft.date ?? null, row.text).toBe(row.date);
+      expect(result.draft.batch ?? null, row.text).toBe(row.batch);
+      if (row.pending !== undefined) expect(result.draft.pendingName ?? null, row.text).toBe(row.pending);
+      if (row.course) expect(result.draft.course, row.text).toBe(row.course);
+      expect(result.reply, row.text).toMatch(row.next);
+      expect(questionsIn(result.reply), result.reply).toBe(row.questions);
+    },
+  );
+
+  it.each(languages)("fills a one-line booking in %s", (language) => {
     const result = counsel({
       text: "my name is Sham Lal, phone 9876543210, IELTS, evening batch, 3 November",
-      language: "en",
+      language,
       now,
     });
     expect(result.ready).toBe(false);
@@ -117,6 +385,230 @@ describe("round 8–16 regression corpus", () => {
     expect(result.draft.course).toBe("ielts-pte");
     expect(result.draft.batch).toBe("evening");
     expect(result.draft.date).toBe("2026-11-03");
-    expect(result.reply).toMatch(/send/i);
+    expect(result.reply).toMatch(ask.send);
+    expect(questionsIn(result.reply)).toBe(1);
+  });
+
+  it.each(
+    PEOPLE.flatMap((name) => captureTexts(name).map((text) => ({ name, text }))).flatMap((row) =>
+      languages.map((language) => ({ ...row, language })),
+    ),
+  )("$language keeps $name from $text off the batch", (row) => {
+    const result = counsel({
+      text: row.text,
+      language: row.language,
+      draft: { active: true, phone, course: "ielts-pte" },
+      now,
+    });
+    expect(result.ready, row.text).toBe(false);
+    expect(result.draft.name, row.text).toBe(row.name);
+    expect(result.draft.phone, row.text).toBe(phone);
+    expect(result.draft.batch ?? null, row.text).toBeNull();
+    expect(result.draft.date ?? null, row.text).toBeNull();
+    expect(result.reply, row.text).toMatch(ask.batch);
+    expect(questionsIn(result.reply), result.reply).toBe(1);
+  });
+
+  it.each(languages)("rejects junk names in %s", (language) => {
+    expect(JUNK.length).toBeGreaterThan(10);
+    for (const text of JUNK) {
+      const result = counsel({ text, language, draft: bases.name, now });
+      expect(result.draft.name, text).toBeUndefined();
+      expect(result.ready, text).toBe(false);
+      expect(result.reply, text).toMatch(ask.name);
+      expect(questionsIn(result.reply), `${text} ${result.reply}`).toBe(1);
+    }
+  });
+
+  it.each(languages)("cancels on the cancel list in %s", (language) => {
+    expect(CANCELS).toHaveLength(38);
+    for (const text of CANCELS) {
+      const result = counsel({ text, language, draft: bases.confirm, now });
+      expect(result.ready, text).toBe(false);
+      expect(result.draft.name, text).toBeUndefined();
+      expect(result.draft.phone, text).toBeUndefined();
+      expect(result.draft.course, text).toBeUndefined();
+      expect(result.reply, text).toMatch(ask.stopped);
+    }
+  });
+
+  it.each(languages)("keeps the draft for non-cancel guards in %s", (language) => {
+    expect(GUARDS).toHaveLength(66);
+    for (const text of GUARDS) {
+      const result = counsel({ text, language, draft: bases.confirm, now });
+      expect(result.ready, text).toBe(false);
+      expect(result.draft.name, text).toBe("Simran");
+      expect(result.draft.phone, text).toBe(phone);
+      expect(result.draft.course, text).toBe("ielts-pte");
+    }
+  });
+
+  it.each(languages)("walks a booking without taking Sham as the batch in %s", (language) => {
+    const booked = counsel({ text: "Book IELTS", language, now });
+    expect(booked.draft.course).toBe("ielts-pte");
+    expect(booked.draft.name ?? null).toBeNull();
+    expect(booked.draft.batch ?? null).toBeNull();
+    expect(booked.reply).toMatch(ask.name);
+    expect(questionsIn(booked.reply)).toBe(1);
+
+    const named = counsel({ text: "Sham Singh", language, draft: booked.draft, now });
+    expect(named.draft.name).toBe("Sham Singh");
+    expect(named.draft.batch ?? null).toBeNull();
+    expect(named.reply).toMatch(ask.phone);
+    expect(questionsIn(named.reply)).toBe(1);
+
+    const phoned = counsel({ text: phone, language, draft: named.draft, now });
+    expect(phoned.draft.phone).toBe(phone);
+    expect(phoned.draft.batch ?? null).toBeNull();
+    expect(phoned.reply).toMatch(ask.batch);
+    expect(questionsIn(phoned.reply)).toBe(1);
+
+    const dated = counsel({ text: "3 November", language, draft: phoned.draft, now });
+    expect(dated.ready).toBe(false);
+    expect(dated.draft.name).toBe("Sham Singh");
+    expect(dated.draft.date).toBe("2026-11-03");
+    expect(dated.draft.batch ?? null).toBeNull();
+    expect(dated.reply).toMatch(ask.batch);
+    expect(questionsIn(dated.reply)).toBe(1);
+  });
+
+  it.each(languages)("answers a fee question without opening a booking in %s", (language) => {
+    const result = counsel({
+      text: "my name is Ravi, what is the IELTS evening batch fee?",
+      language,
+      now,
+    });
+    expect(result.ready).toBe(false);
+    expect(result.draft.active).toBeUndefined();
+    expect(result.draft.name).toBeUndefined();
+    expect(result.draft.course).toBeUndefined();
+    expect(result.draft.batch).toBeUndefined();
+    expect(result.reply).toMatch(ask.fee);
+    expect(questionsIn(result.reply)).toBe(0);
+  });
+
+  it.each(languages)("keeps a name that shares a sentence break with a question in %s", (language) => {
+    const result = counsel({ text: "name: Navjot Kaur. Is the trial online?", language, now });
+    expect(result.ready).toBe(false);
+    expect(result.draft.name).toBe("Navjot Kaur");
+    expect(result.draft.batch ?? null).toBeNull();
+    expect(result.reply).toMatch(ask.online);
+    expect(questionsIn(result.reply)).toBe(1);
+  });
+
+  it.each(languages)("asks one question while a rename is pending in %s", (language) => {
+    const online = counsel({ text: "Is the trial online?", language, draft: bases.rename, now });
+    expect(online.draft.name).toBe("Simran");
+    expect(online.draft.pendingName).toBe("Aman Gill");
+    expect(online.ready).toBe(false);
+    expect(online.reply).toMatch(ask.online);
+    expect(online.reply).toContain("Aman Gill");
+    expect(questionsIn(online.reply)).toBe(1);
+
+    const joined = counsel({ text: "Who can join?", language, draft: bases.rename, now });
+    expect(joined.draft.name).toBe("Simran");
+    expect(joined.draft.pendingName).toBe("Aman Gill");
+    expect(joined.ready).toBe(false);
+    expect(questionsIn(joined.reply)).toBe(1);
+  });
+});
+
+describe("corpus through the chat route", () => {
+  let directory: string;
+
+  beforeEach(async () => {
+    directory = await mkdtemp(path.join(tmpdir(), "udaan-corpus-"));
+    process.env.BOOKINGS_STORE_PATH = path.join(directory, "bookings.json");
+    delete process.env.LLM_API_KEY;
+    delete process.env.LLM_PROVIDER;
+    delete process.env.VERCEL;
+    delete process.env.TRUST_PROXY;
+    resetMemoryAttemptsForTests();
+  });
+
+  afterEach(async () => {
+    delete process.env.BOOKINGS_STORE_PATH;
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  async function post(message: string, language: (typeof languages)[number], draft: Draft) {
+    return postChat(
+      new Request("http://127.0.0.1:43123/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", host: "127.0.0.1:43123" },
+        body: JSON.stringify({ message, language, draft, history: [] }),
+      }),
+    );
+  }
+
+  it("saves a confirmed trial and records the chat source", async () => {
+    const response = await post("yes", "en", {
+      active: true,
+      confirming: true,
+      name: "Simran",
+      phone: "9876501111",
+      course: "ielts-pte",
+      batch: "morning",
+      date: "2026-11-20",
+    });
+    expect(response.status).toBe(200);
+    const saved = await listBookings();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.name).toBe("Simran");
+    expect(saved[0]?.source).toBe("chat");
+    expect(saved[0]?.course).toBe("ielts-pte");
+    expect(saved[0]?.batch).toBe("morning");
+    expect(saved[0]?.date).toBe("2026-11-20");
+  });
+
+  it("saves a Hindi confirmation under the draft name", async () => {
+    const response = await post("हाँ", "hi", {
+      active: true,
+      confirming: true,
+      name: "Simran Kaur",
+      phone: "9876502222",
+      course: "ielts-pte",
+      batch: "morning",
+      date: "2026-11-20",
+    });
+    expect(response.status).toBe(200);
+    const saved = await listBookings();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.name).toBe("Simran Kaur");
+    expect(saved[0]?.language).toBe("hi");
+    expect(saved[0]?.source).toBe("chat");
+  });
+
+  it("does not save when a pending rename is declined with no, correct", async () => {
+    const response = await post("no, correct", "pa", {
+      active: true,
+      confirming: true,
+      name: "Simran",
+      phone: "9876503333",
+      course: "ielts-pte",
+      batch: "morning",
+      date: "2026-11-20",
+      pendingName: "Aman Gill",
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { booking: unknown; draft: { name?: string; pendingName?: string } };
+    expect(body.booking).toBeNull();
+    expect(body.draft.name).toBe("Simran");
+    expect(body.draft.pendingName).toBeUndefined();
+    expect(await listBookings()).toHaveLength(0);
+  });
+
+  it("keeps Sham Singh as the name when the route sees for-name phone text", async () => {
+    const response = await post("for Sham Singh, phone 9876543210", "en", {
+      active: true,
+      phone,
+      course: "ielts-pte",
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { booking: unknown; draft: { name?: string; batch?: string } };
+    expect(body.booking).toBeNull();
+    expect(body.draft.name).toBe("Sham Singh");
+    expect(body.draft.batch).toBeUndefined();
+    expect(await listBookings()).toHaveLength(0);
   });
 });
