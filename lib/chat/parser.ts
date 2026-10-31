@@ -114,6 +114,9 @@ const CLOCK_MARKERS = new Set(
 
 const MORNING = ["morning", "subah", "savera", "सुबह", "सवेरे", "सवेरा", "तड़के", "ਸਵੇਰ", "ਸਵੇਰੇ"].map(fold);
 const AFTERNOON = ["afternoon", "dopahar", "दोपहर", "ਦੁਪਹਿਰ"].map(fold);
+const PERSONAL_TIME_NAMES = new Set(
+  ["sham", "shaam", "subah", "savera", "sandhya", "dopahar", "शाम", "सुबह", "सवेरा", "सवेरे", "दोपहर", "ਸ਼ਾਮ", "ਸਵੇਰ", "ਸਵੇਰੇ", "ਦੁਪਹਿਰ"].map(fold),
+);
 const EVENING = ["evening", "shaam", "sham", "शाम", "ਸ਼ਾਮ"].map(fold);
 const NIGHT = ["night", "रात", "रात्रि", "ਰਾਤ"].map(fold);
 const WEEKEND = ["weekend", "वीकेंड", "वीकएंड", "ਵੀਕਐਂਡ"].map(fold);
@@ -430,13 +433,10 @@ const EXPLICIT_NAME_LEADS = [
   /^(?:spelled|spelt)\s+/iu,
 ];
 
-const AMBIGUOUS_NAME_LEADS = new Set(["naam", "main", "mai", "नाम", "ਨਾਂ", "ਨਾਮ"].map(fold));
+const AMBIGUOUS_NAME_LEADS = new Set(["naam", "main", "mai", "मैं", "ਮੈਂ", "नाम", "ਨਾਂ", "ਨਾਮ"].map(fold));
+const KEPT_NAME_PAIRS = new Set(["main singh", "main kaur", "naam dev"].map(fold));
 
 const NAME_START_FILLERS = new Set(["now", "already", "actually", "just", "please", "plz", "अब", "ਹੁਣ"].map(fold));
-
-const NAME_TIME_TOKENS = new Set(
-  ["sham", "shaam", "subah", "savera", "sandhya", "शाम", "सुबह", "ਸ਼ਾਮ", "ਸਵੇਰ", "ਸਵੇਰੇ"].map(fold),
-);
 
 function stripNameAffixes(value: string): string {
   let text = value.normalize("NFC").trim().replace(/^[।.!?]+|[।.!?]+$/gu, "");
@@ -447,12 +447,26 @@ function stripNameAffixes(value: string): string {
     if (next === text) break;
     text = next;
   }
+  text = text.replace(/(?:\s+(?:hoon|hu|hun|hai|हूँ|हूं|है|हैं|ਹੈ|ਹਾਂ|ही|ਹੀ|ji|जी|ਜੀ|only|now|already|actually|just|please|plz|अब|ਹੁਣ))+$/iu, "").trim();
   let words = text.split(/\s+/).filter(Boolean);
-  if (words.length >= 3 && AMBIGUOUS_NAME_LEADS.has(fold(words[0] ?? ""))) words = words.slice(1);
+  if (AMBIGUOUS_NAME_LEADS.has(fold(words[0] ?? ""))) {
+    const rest = words.slice(1);
+    const pair = fold(`${words[0]} ${rest[0] ?? ""}`);
+    if (rest.length === 1 && !KEPT_NAME_PAIRS.has(pair)) words = rest;
+  }
+  if (fold(words[0] ?? "") === "name" && words.length >= 2) words = words.slice(1);
   while (words.length > 1 && NAME_START_FILLERS.has(fold(words[0] ?? ""))) words = words.slice(1);
-  text = words.join(" ");
-  text = text.replace(/(?:\s+(?:hai|है|हैं|हूँ|हूं|ਹੈ|ਹਾਂ|ही|ਹੀ|ji|जी|ਜੀ|only|now|already|actually|just|please|plz|अब|ਹੁਣ))+$/iu, "").trim();
-  return text;
+  return words.join(" ").trim();
+}
+
+export function isLoneTimeName(name: string): boolean {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return words.length === 1 && PERSONAL_TIME_NAMES.has(fold(words[0] ?? ""));
+}
+
+export function isAcceptableBookingName(name: string, confirmed = false): boolean {
+  if (isPersonName(name)) return true;
+  return confirmed && isLoneTimeName(name);
 }
 
 export function normalisePersonName(value: string): string | null {
@@ -617,7 +631,36 @@ function nameBesidePhone(source: string): string | null {
 const NAME_FILLERS = new Set(["now", "already", "actually", "just", "please", "ji", "जी", "ਜੀ", "plz", "अब", "ਹੁਣ"].map(fold));
 
 const NAME_JUNK = new Set(
-  ["thanks", "thank", "thanku", "given", "here", "before", "plus", "hold", "on", "batch", "weekend", "as", "minute"].map(fold),
+  [
+    "thanks",
+    "thank",
+    "thanku",
+    "given",
+    "here",
+    "before",
+    "plus",
+    "hold",
+    "on",
+    "batch",
+    "weekend",
+    "as",
+    "minute",
+    "hmm",
+    "later",
+    "skip",
+    "test",
+    "na",
+    "none",
+    "online",
+    "punjabi",
+    "interested",
+    "hello",
+    "booking",
+    "want",
+    "need",
+    "kal",
+    "i",
+  ].map(fold),
 );
 
 function stripNameFillers(value: string): string {
@@ -639,9 +682,36 @@ function cleanName(value: string): string | null {
   return null;
 }
 
-export function readNameReply(text: string): { name: string | null; phone: string | null } {
+const TRAILING_TIME =
+  /^(.*?)(?:[,，]\s*|\s+)(morning|evening|afternoon|subah|savera|sandhya|dopahar|shaam|sham|सुबह|सवेरे|सवेरा|दोपहर|शाम|ਸਵੇਰੇ?|ਦੁਪਹਿਰ|ਸ਼ਾਮ)(?:\s+(?:ka|ke|ki|का|के|की|ਦਾ|ਦੇ|ਦੀ))?(?:\s+(?:batch|बैच|ਬੈਚ))?$/iu;
+
+export type NameReply = {
+  name: string | null;
+  phone: string | null;
+  batch: BatchId | null;
+  course: string | null;
+  date: string | null;
+  timeName: boolean;
+};
+
+function emptyNameReply(): NameReply {
+  return { name: null, phone: null, batch: null, course: null, date: null, timeName: false };
+}
+
+function peelTrailingBatch(text: string): { name: string | null; batch: BatchId | null; timeName: boolean } {
+  const match = text.trim().match(TRAILING_TIME);
+  if (!match) return { name: null, batch: null, timeName: false };
+  const batch = batchFrom(periodOf(match[2] ?? ""), null);
+  const prefix = stripNameAffixes((match[1] ?? "").replace(/[,，]\s*$/u, ""));
+  if (!prefix || prefix.split(/\s+/).some((word) => NAME_JUNK.has(fold(word)))) return { name: null, batch, timeName: false };
+  if (isLoneTimeName(prefix)) return { name: prefix, batch, timeName: true };
+  if (isPersonName(prefix) || normalisePersonName(prefix)) return { name: normalisePersonName(prefix) ?? prefix, batch, timeName: false };
+  return { name: null, batch, timeName: false };
+}
+
+export function readNameReply(text: string, now = new Date()): NameReply {
   const trimmed = text.normalize("NFC").trim();
-  if (!trimmed || isQuestionForm(trimmed) || isPureGreeting(tokenize(trimmed))) return { name: null, phone: null };
+  if (!trimmed || isQuestionForm(trimmed) || isPureGreeting(tokenize(trimmed))) return emptyNameReply();
   const phone = extractPhone(trimmed);
   let source = trimmed;
   if (phone) {
@@ -653,13 +723,21 @@ export function readNameReply(text: string): { name: string | null; phone: strin
       .replace(/^\s*for\s+/iu, "")
       .trim();
   }
-  if (mentionsBatchWord(source)) return { name: null, phone: null };
-  const named = normalisePersonName(source);
-  if (named) return { name: named, phone };
-  const bare = stripNameAffixes(source);
-  const words = bare.split(/\s+/).filter(Boolean);
-  if (words.length === 1 && NAME_TIME_TOKENS.has(fold(words[0] ?? ""))) return { name: bare, phone };
-  return { name: null, phone: null };
+  const courses = matchCourses(trimmed);
+  const course = courses.length === 1 ? courses[0] : null;
+  const date = extractDate(trimmed, now);
+  const stripped = stripNameAffixes(source);
+  const peeled = peelTrailingBatch(stripped);
+  let batch = peeled.batch;
+  if (!batch && /^(?:i want|i need|kal)\b/iu.test(source)) batch = batchFrom(periodFromTokens(tokenize(source)), null);
+  if (!batch && isBatchAnswer(source) && !isLoneTimeName(stripNameAffixes(source))) batch = batchFrom(resolvePeriod(source), null);
+  const candidate = peeled.name ?? (batch && isBatchAnswer(source) ? null : stripNameAffixes(source));
+  const cleaned = candidate ? normalisePersonName(candidate) ?? (isLoneTimeName(candidate) ? candidate : null) : null;
+  if (!cleaned || NAME_JUNK.has(fold(cleaned))) {
+    return { name: null, phone, batch, course, date, timeName: false };
+  }
+  if (isLoneTimeName(cleaned)) return { name: cleaned, phone, batch, course, date, timeName: true };
+  return { name: cleaned, phone, batch, course, date, timeName: false };
 }
 
 const NAME_CONFIRM = new Set(
@@ -1044,7 +1122,7 @@ export function isPersonName(value: string): boolean {
   if (words.some((word) => blocked.has(fold(word)) || RESERVED_NAMES.has(fold(word)))) return false;
   const honorifics = new Set(["ji", "जी", "ਜੀ"].map(fold));
   const particles = new Set(["ka", "ke", "ki", "ko", "nu", "da", "de", "di", "wala", "का", "के", "की", "को", "वाला", "ਦਾ", "ਦੇ", "ਦੀ", "ਨੂੰ", "ਵਾਲਾ"].map(fold));
-  const timeOfDay = new Set([...MORNING, ...AFTERNOON, ...EVENING, ...NIGHT, ...WEEKEND]);
+  const timeOfDay = new Set([...MORNING, ...AFTERNOON, ...EVENING, ...NIGHT, ...WEEKEND, ...PERSONAL_TIME_NAMES]);
   const given = words.filter(
     (word) => !titles.has(fold(word)) && !honorifics.has(fold(word)) && !timeOfDay.has(fold(word)) && !particles.has(fold(word)),
   );
@@ -1372,9 +1450,16 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
   const { partySize, time } = scanQuantities(tokens);
   const phone = extractPhone(prepared);
   const named = extractName(prepared);
-  const resolvedName = named.name;
+  let resolvedName = named.name;
   const period = resolvePeriod(textWithoutName(prepared, resolvedName));
-  const batch = batchFrom(period, resolvedName ? null : time);
+  let batch = batchFrom(period, resolvedName ? null : time);
+  if (resolvedName) {
+    const split = peelTrailingBatch(resolvedName);
+    if (split.name && split.batch && split.name !== resolvedName) {
+      resolvedName = split.name;
+      batch = batch ?? split.batch;
+    }
+  }
   const date = extractDate(prepared, now);
 
   const askingPhone = !phone && hasAny(prepared, PHONE_ASK);

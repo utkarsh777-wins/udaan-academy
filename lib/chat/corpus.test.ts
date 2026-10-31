@@ -95,18 +95,18 @@ const rows: Row[] = [
   { step: "name", text: "मेरा नाम शाम लाल है", name: "शाम लाल", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
   { step: "name", text: "my name is Sham Lal", name: "Sham Lal", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
   { step: "name", text: "I am Sham Sundar", name: "Sham Sundar", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
-  { step: "name", text: "Simran morning", name: "Simran morning", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
-  { step: "name", text: "Simran, evening batch", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
-  { step: "name", text: "I am Simran, morning batch", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
-  { step: "name", text: "main Simran", name: "main Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "Simran morning", name: "Simran", phone: null, date: null, batch: "morning", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "Simran, evening batch", name: "Simran", phone: null, date: null, batch: "evening", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "I am Simran, morning batch", name: "Simran", phone: null, date: null, batch: "morning", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "main Simran", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
   { step: "name", text: "मैं सिमरन", name: "सिमरन", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
   { step: "name", text: "ਮੈਂ ਸਿਮਰਨ", name: "ਸਿਮਰਨ", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
   { step: "name", text: "it's Simran", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
-  { step: "name", text: "name Simran", name: "name Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "name Simran", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
   { step: "name", text: "Simran ji", name: "Simran", phone: null, date: null, batch: null, sent: false, next: ask.phone, questions: 1 },
-  { step: "name", text: "सिमरन, शाम का बैच", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
-  { step: "name", text: "ਸਿਮਰਨ, ਸ਼ਾਮ ਦਾ ਬੈਚ", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
-  { step: "name", text: "evening batch", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
+  { step: "name", text: "सिमरन, शाम का बैच", name: "सिमरन", phone: null, date: null, batch: "evening", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "ਸਿਮਰਨ, ਸ਼ਾਮ ਦਾ ਬੈਚ", name: "ਸਿਮਰਨ", phone: null, date: null, batch: "evening", sent: false, next: ask.phone, questions: 1 },
+  { step: "name", text: "evening batch", name: null, phone: null, date: null, batch: "evening", sent: false, next: ask.name, questions: 1 },
   { step: "name", text: "one sec", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
   { step: "name", text: "one minute", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
   { step: "name", text: "hello", name: null, phone: null, date: null, batch: null, sent: false, next: ask.name, questions: 1 },
@@ -167,6 +167,9 @@ const rows: Row[] = [
   { step: "rename", text: "Not needed, same", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
   { step: "rename", text: "dont change, same", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
   { step: "rename", text: "don't change, same", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "naah, same", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "dont, same", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
+  { step: "rename", text: "nko, same", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
   { step: "rename", text: "mat badlo, same", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
   { step: "rename", text: "मत बदलो, सही है", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
   { step: "rename", text: "ਨਾ ਬਦਲੋ, ਸਹੀ ਹੈ", ...kept, sent: false, next: ask.send, questions: 1, pending: null },
@@ -530,25 +533,39 @@ describe("round 18 name slot and one-shot capture", () => {
 
   it.each(
     ["Sham", "Subah", "Savera", "Sandhya", "शाम", "ਸ਼ਾਮ"].flatMap((name) => languages.map((language) => ({ name, language }))),
-  )("$language bare $name is only a name", ({ name, language }) => {
+  )("$language bare $name asks for confirmation before it is saved", ({ name, language }) => {
     const result = counsel({ text: name, language, draft: waiting, now });
-    expect(result.draft.name).toBe(name);
+    expect(result.draft.name ?? null).toBeNull();
+    expect(result.draft.pendingTimeName).toBe(name);
+    expect(result.draft.nameConfirmed).not.toBe(true);
     expect(result.draft.batch ?? null).toBeNull();
-    expect(result.draft.phone).toBe(phone);
     expect(result.ready).toBe(false);
-    expect(result.reply).toMatch(ask.batch);
+    expect(result.reply).toContain(name);
     expect(questionsIn(result.reply)).toBe(1);
+    const yes = language === "hi" ? "हाँ" : language === "pa" ? "ਹਾਂ" : "yes";
+    const kept = counsel({ text: yes, language, draft: result.draft, now });
+    expect(kept.draft.name).toBe(name);
+    expect(kept.draft.nameConfirmed).toBe(true);
+    expect(kept.draft.pendingTimeName).toBeUndefined();
+    expect(kept.draft.batch ?? null).toBeNull();
+    expect(kept.reply).toMatch(ask.batch);
+    expect(questionsIn(kept.reply)).toBe(1);
   });
 
   it.each(
     (
       [
-        ["I am Sham", "Sham"],
-        ["it's Sham", "Sham"],
-        ["im Sham", "Sham"],
-        ["main Sham", "main Sham"],
-        ["मैं शाम", "शाम"],
-        ["I am Savera", "Savera"],
+        ["I am Sham", null],
+        ["it's Sham", null],
+        ["im Sham", null],
+        ["main Sham", null],
+        ["मैं शाम", null],
+        ["ਮੈਂ ਸ਼ਾਮ", null],
+        ["I am Savera", null],
+        ["main Simran", "Simran"],
+        ["mai Simran", "Simran"],
+        ["main Simran hoon", "Simran"],
+        ["name Sham", null],
         ["Naam Dev", "Naam Dev"],
         ["Main Singh", "Main Singh"],
         ["Sahi Ram", "Sahi Ram"],
@@ -643,12 +660,19 @@ describe("round 18 name slot and one-shot capture", () => {
   });
 
   it.each(languages)("walks Sham, a for-name booking, and a bare Subah in %s", (language) => {
+    const yes = language === "hi" ? "हाँ" : language === "pa" ? "ਹਾਂ" : "yes";
     const booked = counsel({ text: "Book IELTS", language, now });
     expect(booked.draft.batch ?? null).toBeNull();
     const named = counsel({ text: "Sham", language, draft: booked.draft, now });
-    expect(named.draft.name).toBe("Sham");
-    expect(named.draft.batch ?? null).toBeNull();
-    expect(named.reply).toMatch(ask.phone);
+    expect(named.draft.pendingTimeName).toBe("Sham");
+    expect(named.draft.name ?? null).toBeNull();
+    expect(questionsIn(named.reply)).toBe(1);
+    const accepted = counsel({ text: yes, language, draft: named.draft, now });
+    expect(accepted.draft.name).toBe("Sham");
+    expect(accepted.draft.nameConfirmed).toBe(true);
+    expect(accepted.draft.batch ?? null).toBeNull();
+    expect(accepted.reply).toMatch(ask.phone);
+    expect(questionsIn(accepted.reply)).toBe(1);
 
     const shot = counsel({ text: `Book an IELTS trial for Savera Kaur ${phone}`, language, now });
     expect(shot.draft.name).toBe("Savera Kaur");
@@ -659,13 +683,51 @@ describe("round 18 name slot and one-shot capture", () => {
     expect(batched.reply).toMatch(ask.date);
 
     const subah = counsel({ text: "Subah", language, draft: waiting, now });
-    expect(subah.draft.name).toBe("Subah");
-    expect(subah.draft.batch ?? null).toBeNull();
-    const evening = counsel({ text: "evening batch", language, draft: subah.draft, now });
-    expect(evening.draft.batch).toBe("evening");
+    expect(subah.draft.pendingTimeName).toBe("Subah");
+    const evening = counsel({ text: yes, language, draft: subah.draft, now });
     expect(evening.draft.name).toBe("Subah");
-    expect(evening.reply).toMatch(ask.date);
+    expect(evening.draft.batch ?? null).toBeNull();
+    expect(evening.reply).toMatch(ask.batch);
     expect(questionsIn(evening.reply)).toBe(1);
+  });
+});
+
+describe("round 19 name rules", () => {
+  it.each(languages)("drops junk, keeps a trailing batch, and protects real two-word names in %s", (language) => {
+    for (const text of ["hmm", "later", "skip", "test", "na", "none", "online", "Punjabi", "interested", "booking", "hello"]) {
+      const result = counsel({ text, language, draft: bases.name, now });
+      expect(result.draft.name, text).toBeUndefined();
+      expect(result.reply, text).toMatch(ask.name);
+      expect(questionsIn(result.reply), `${text} ${result.reply}`).toBe(1);
+    }
+    for (const text of ["I want evening", "I need evening", "kal shaam"]) {
+      const result = counsel({ text, language, draft: bases.name, now });
+      expect(result.draft.name, text).toBeUndefined();
+      expect(result.draft.batch, text).toBe("evening");
+      expect(result.reply, text).toMatch(ask.name);
+      expect(questionsIn(result.reply), result.reply).toBe(1);
+    }
+    const shaam = counsel({ text: "Simran shaam", language, draft: bases.name, now });
+    expect(shaam.draft.name).toBe("Simran");
+    expect(shaam.draft.batch).toBe("evening");
+    expect(shaam.reply).toMatch(ask.phone);
+    expect(questionsIn(shaam.reply)).toBe(1);
+    const kaur = counsel({ text: "Simran Kaur evening", language, draft: bases.name, now });
+    expect(kaur.draft.name).toBe("Simran Kaur");
+    expect(kaur.draft.batch).toBe("evening");
+    const hindi = counsel({ text: "सिमरन शाम", language, draft: bases.name, now });
+    expect(hindi.draft.name).toBe("सिमरन");
+    expect(hindi.draft.batch).toBe("evening");
+    expect(counsel({ text: "Main Singh", language, draft: bases.name, now }).draft.name).toBe("Main Singh");
+    expect(counsel({ text: "Main Kaur", language, draft: bases.name, now }).draft.name).toBe("Main Kaur");
+    expect(counsel({ text: "Naam Dev", language, draft: bases.name, now }).draft.name).toBe("Naam Dev");
+    expect(counsel({ text: "my name is Main Singh Gill", language, draft: bases.name, now }).draft.name).toBe("Main Singh Gill");
+    expect(counsel({ text: "my name is Naam Dev Singh", language, draft: bases.name, now }).draft.name).toBe("Naam Dev Singh");
+    const neet = counsel({ text: "NEET instead", language, draft: bases.name, now });
+    expect(neet.draft.course).toBe("neet-foundation");
+    expect(neet.draft.name).toBeUndefined();
+    expect(neet.reply).toMatch(ask.name);
+    expect(questionsIn(neet.reply)).toBe(1);
   });
 });
 
@@ -781,6 +843,82 @@ describe("corpus through the chat route", () => {
     expect(stored[0]?.batch).toBe("morning");
     expect(stored[0]?.date).toBe("2026-11-20");
     expect(stored[0]?.source).toBe("chat");
+  });
+
+  it("saves a confirmed one-word Sham, शाम and ਸ਼ਾਮ booking", async () => {
+    const cases = [
+      { name: "Sham", language: "en" as const, yes: "yes", phone: "9876505551" },
+      { name: "शाम", language: "hi" as const, yes: "हाँ", phone: "9876505552" },
+      { name: "ਸ਼ਾਮ", language: "pa" as const, yes: "ਹਾਂ", phone: "9876505553" },
+    ];
+    for (const item of cases) {
+      const asked = await post(item.name, item.language, {
+        active: true,
+        phone: item.phone,
+        course: "ielts-pte",
+        batch: "morning",
+        date: "2026-11-20",
+      });
+      const askedBody = (await asked.json()) as { booking: unknown; draft: Draft };
+      expect(askedBody.booking, item.name).toBeNull();
+      expect(askedBody.draft.pendingTimeName, item.name).toBe(item.name);
+      const confirmed = await post(item.yes, item.language, askedBody.draft);
+      const confirmedBody = (await confirmed.json()) as { booking: unknown; draft: Draft };
+      expect(confirmedBody.booking, item.name).toBeNull();
+      expect(confirmedBody.draft.name, item.name).toBe(item.name);
+      expect(confirmedBody.draft.nameConfirmed, item.name).toBe(true);
+      const saved = await post(item.yes, item.language, confirmedBody.draft);
+      expect(saved.status).toBe(200);
+      const stored = await listBookings();
+      expect(stored.some((booking) => booking.name === item.name && booking.phone === item.phone && booking.source === "chat")).toBe(true);
+    }
+  });
+
+  it("saves main Simran and Simran morning, and keeps the old name on naah, same", async () => {
+    const simran = await post("main Simran", "en", {
+      active: true,
+      phone: "9876505554",
+      course: "ielts-pte",
+      batch: "evening",
+      date: "2026-11-20",
+    });
+    const simranBody = (await simran.json()) as { booking: unknown; draft: Draft };
+    expect(simranBody.booking).toBeNull();
+    expect(simranBody.draft.name).toBe("Simran");
+    const simranSaved = await post("yes", "en", simranBody.draft);
+    expect((await listBookings()).some((booking) => booking.name === "Simran" && booking.phone === "9876505554")).toBe(true);
+    expect((await simranSaved.json()) as { booking: { id?: string } }).toMatchObject({ booking: { id: expect.stringMatching(/^UA-/) } });
+
+    const morning = await post("Simran morning", "en", {
+      active: true,
+      phone: "9876505555",
+      course: "ielts-pte",
+    });
+    const morningBody = (await morning.json()) as { draft: Draft; booking: unknown };
+    expect(morningBody.booking).toBeNull();
+    expect(morningBody.draft.name).toBe("Simran");
+    expect(morningBody.draft.batch).toBe("morning");
+    const dated = await post("20 November", "en", morningBody.draft);
+    const datedBody = (await dated.json()) as { draft: Draft };
+    const morningSaved = await post("yes", "en", datedBody.draft);
+    expect(morningSaved.status).toBe(200);
+    expect((await listBookings()).some((booking) => booking.phone === "9876505555" && booking.batch === "morning" && booking.name === "Simran")).toBe(true);
+
+    const declined = await post("naah, same", "en", {
+      active: true,
+      confirming: true,
+      name: "Simran",
+      pendingName: "Aman Gill",
+      phone: "9876505556",
+      course: "ielts-pte",
+      batch: "morning",
+      date: "2026-11-20",
+    });
+    const declinedBody = (await declined.json()) as { booking: unknown; draft: Draft };
+    expect(declinedBody.booking).toBeNull();
+    expect(declinedBody.draft.name).toBe("Simran");
+    expect(declinedBody.draft.pendingName).toBeUndefined();
+    expect((await listBookings()).some((booking) => booking.phone === "9876505556")).toBe(false);
   });
 
   it("keeps Sham Singh as the name when the route sees for-name phone text", async () => {

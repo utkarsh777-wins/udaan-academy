@@ -39,6 +39,8 @@ export type Draft = {
   active?: boolean;
   confirming?: boolean;
   pendingName?: string;
+  pendingTimeName?: string;
+  nameConfirmed?: boolean;
   name?: string;
   phone?: string;
   email?: string;
@@ -77,6 +79,25 @@ export function counsel(options: {
       ready: false,
       intent: "book",
     };
+  }
+
+  if (incoming.pendingTimeName && !isSubstantiveQuestion(options.text)) {
+    const pendingTimeName = incoming.pendingTimeName;
+    if (isAffirmative(options.text) || explicitConfirmation(options.text)) {
+      return resumeDraft(
+        { ...incoming, name: pendingTimeName, nameConfirmed: true, pendingTimeName: undefined, active: true },
+        language,
+      );
+    }
+    if (startsWithNo(options.text)) {
+      return {
+        reply: askFor("name", language),
+        draft: { ...incoming, pendingTimeName: undefined, name: undefined, nameConfirmed: undefined, active: true },
+        ready: false,
+        intent: "book",
+      };
+    }
+    incoming = { ...incoming, pendingTimeName: undefined };
   }
 
   if (incoming.pendingName) {
@@ -235,17 +256,30 @@ export function counsel(options: {
   }
 
   if (hasStarted(incoming) && !incoming.name && !isSubstantiveQuestion(options.text) && !isOnlineQuestion(options.text)) {
-    const taken = readNameReply(options.text);
-    if (!taken.name) {
+    const taken = readNameReply(options.text, now);
+    const named: Draft = { ...incoming, active: true, confirming: false, pendingName: undefined };
+    if (taken.phone) named.phone = taken.phone;
+    if (taken.course) named.course = taken.course;
+    if (taken.date) named.date = taken.date;
+    if (taken.batch && (named.course ? isBatchOnCourse(named.course, taken.batch) : true)) named.batch = taken.batch;
+    if (taken.timeName && taken.name) {
       return {
-        reply: askFor("name", language),
-        draft: { ...incoming, active: true },
+        reply: timeNameQuestion(language, taken.name),
+        draft: { ...named, pendingTimeName: taken.name, name: undefined, nameConfirmed: false },
         ready: false,
         intent: "book",
       };
     }
-    const named: Draft = { ...incoming, name: taken.name, active: true, confirming: false, pendingName: undefined };
-    if (taken.phone) named.phone = taken.phone;
+    if (!taken.name) {
+      return {
+        reply: askFor("name", language),
+        draft: named,
+        ready: false,
+        intent: "book",
+      };
+    }
+    named.name = taken.name;
+    named.nameConfirmed = true;
     return resumeDraft(named, language);
   }
 
@@ -499,12 +533,33 @@ function isCancel(text: string): boolean {
   return clauseCancels(text);
 }
 
+function squeezeToken(token: string): string {
+  return token.replace(/([\p{L}\p{M}])\1+/gu, "$1");
+}
+
 function startsWithNo(text: string): boolean {
-  const flat = text.normalize("NFC").trim().toLowerCase().replace(/[,，]+/g, " ").replace(/\s+/g, " ");
-  const phrases = ["do not change", "don't change", "dont change", "not needed", "mat badlo", "मत बदलो", "ਨਾ ਬਦਲੋ"];
+  const flat = text
+    .normalize("NFC")
+    .trim()
+    .toLowerCase()
+    .replace(/['’`]/g, "")
+    .replace(/[,，.!?।]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const phrases = ["do not change", "don't change", "dont change", "do not", "not needed", "mat badlo", "मत बदलो", "ਨਾ ਬਦਲੋ"];
   if (phrases.some((phrase) => flat === phrase || flat.startsWith(`${phrase} `))) return true;
   const first = flat.split(/\s+/u)[0] ?? "";
-  return ["no", "nope", "nah", "na", "naa", "nai", "nhi", "nahi", "nahin", "नहीं", "ना", "नही", "ਨਹੀਂ", "ਨਾ"].includes(first);
+  const token = squeezeToken(first);
+  const nos = new Set(
+    ["no", "nope", "nah", "naah", "nko", "dont", "na", "naa", "nai", "nhi", "nahi", "nahin", "नहीं", "ना", "नही", "ਨਹੀਂ", "ਨਾ"].map(squeezeToken),
+  );
+  return nos.has(token) || nos.has(first);
+}
+
+function timeNameQuestion(language: Language, name: string): string {
+  if (language === "hi") return `क्या आपका नाम ${name} है?`;
+  if (language === "pa") return `ਕੀ ਤੁਹਾਡਾ ਨਾਮ ${name} ਹੈ?`;
+  return `Is your name ${name}?`;
 }
 
 const RENAME_YES = new Set(
