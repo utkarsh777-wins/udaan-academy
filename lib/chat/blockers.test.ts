@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getCourse } from "@/lib/academy";
-import { counsel } from "@/lib/chat/respond";
+import { counsel, formServerMessage } from "@/lib/chat/respond";
 import { parseUtterance } from "@/lib/chat/parser";
 
 const now = new Date("2026-10-31T08:00:00.000Z");
@@ -296,5 +296,112 @@ describe("blocker regressions", () => {
     });
     expect(evening.draft.date).toBe("2026-10-31");
     expect(evening.draft.confirming).toBe(true);
+  });
+
+  it("R7 translates booking errors for the Hindi form and keeps English as a fallback", () => {
+    const duplicate = formServerMessage("hi", {
+      error: "duplicate_phone",
+      message: "This phone number already has a free trial class request today.",
+    });
+    expect(duplicate).toContain("आज पहले ही");
+    expect(duplicate).not.toContain("already has");
+
+    const phoneLimit = formServerMessage("hi", {
+      error: "rate_limit",
+      limit: "phone",
+      message: "Too many attempts for this number. Wait ten minutes and try again.",
+    });
+    expect(phoneLimit).toContain("इस नंबर से बहुत कोशिशें");
+    expect(phoneLimit).not.toContain("Too many");
+
+    const connectionLimit = formServerMessage("hi", {
+      error: "rate_limit",
+      limit: "ip",
+      message: "Too many attempts from this connection. Wait ten minutes and try again.",
+    });
+    expect(connectionLimit).toContain("इस कनेक्शन से बहुत कोशिशें");
+
+    const weekday = formServerMessage("hi", {
+      error: "invalid",
+      fields: ["date"],
+      dateReason: "weekday",
+      message: "That batch doesn't run on that day.",
+    });
+    expect(weekday).toContain("बैच के दिन नहीं");
+    expect(weekday).not.toContain("doesn't run");
+
+    const ended = formServerMessage("hi", {
+      error: "invalid",
+      fields: ["date"],
+      dateReason: "ended",
+      message: "That batch has already finished today. Pick another day.",
+    });
+    expect(ended).toContain("खत्म हो चुका");
+
+    const window = formServerMessage("hi", {
+      error: "invalid",
+      fields: ["date"],
+      dateReason: "window",
+      message: "Pick a date from today through the next 45 days.",
+    });
+    expect(window).toContain("45");
+    expect(window).not.toContain("Pick a date");
+
+    const english = formServerMessage("en", {
+      error: "invalid",
+      fields: ["date"],
+      dateReason: "weekday",
+      message: "That batch doesn't run on that day. Morning runs Mon–Fri.",
+    });
+    expect(english).toContain("doesn't run");
+  });
+
+  it("R7 does not take cancel words or hedges as a name, and a question is not a yes", () => {
+    const started = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const, date: "2026-11-20" };
+    for (const word of ["cancel", "stop", "ruko", "रुको", "रद्द"]) {
+      const ended = counsel({ text: word, language: "en", draft: started, now });
+      expect(ended.ready, word).toBe(false);
+      expect(ended.draft.name, word).toBeUndefined();
+      expect(ended.draft.course, word).toBeUndefined();
+      expect(ended.reply.toLowerCase()).toMatch(/stopped|nothing|रोक|ਨਹੀਂ/);
+    }
+    for (const word of ["cancel", "stop", "ruko", "रुको", "रद्द", "wait", "go ahead", "theek hai", "ok"]) {
+      const named = counsel({ text: word, language: "en", draft: { active: true }, now });
+      expect(named.draft.name, word).toBeUndefined();
+    }
+    const confirming = { ...started, confirming: true };
+    for (const word of ["yes?", "sure?", "ok?"]) {
+      const held = counsel({ text: word, language: "en", draft: confirming, now });
+      expect(held.ready, word).toBe(false);
+      expect(held.draft.confirming, word).toBe(true);
+      expect(held.reply.toLowerCase()).toContain("yes");
+    }
+    expect(counsel({ text: "yes", language: "en", draft: confirming, now }).ready).toBe(true);
+    expect(counsel({ text: "theek hai", language: "en", draft: confirming, now }).ready).toBe(true);
+  });
+
+  it("R7 answers a trial eligibility question and reads a name beside a weekday", () => {
+    const asked = counsel({ text: "Is the trial class free for class 11?", language: "en", now });
+    expect(asked.intent).toBe("eligibility");
+    expect(asked.ready).toBe(false);
+    expect(asked.draft.name).toBeUndefined();
+    expect(asked.draft.active).toBeUndefined();
+    expect(asked.reply.toLowerCase()).toContain("free");
+    expect(asked.reply).toContain("class 11");
+    expect(asked.reply.toLowerCase()).not.toContain("what name");
+
+    const parsed = parseUtterance("Book IELTS morning trial for Tuesday. Simran, 9876543210", now);
+    expect(parsed.name).toBe("Simran");
+    expect(parsed.phone).toBe("9876543210");
+    expect(parsed.date).toBe("2026-11-03");
+    expect(parsed.courses).toEqual(["ielts-pte"]);
+    expect(parsed.batch).toBe("morning");
+    const booked = counsel({ text: "Book IELTS morning trial for Tuesday. Simran, 9876543210", language: "en", now });
+    expect(booked.ready).toBe(false);
+    expect(booked.draft.confirming).toBe(true);
+    expect(booked.draft.name).toBe("Simran");
+    expect(booked.draft.date).toBe("2026-11-03");
+    expect(booked.draft.course).toBe("ielts-pte");
+    expect(booked.draft.batch).toBe("morning");
   });
 });

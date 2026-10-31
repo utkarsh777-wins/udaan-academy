@@ -78,6 +78,7 @@ export function CourseView({ slug }: { slug: string }) {
         </div>
         <aside className="lg:sticky lg:top-24 lg:self-start">
           <Ticket
+            label={copy.ticketLabel}
             eyebrow={hi ? "फ़्री ट्रायल क्लास" : "Free trial class"}
             from={hi ? "फगवाड़ा" : "Phagwara"}
             to={track}

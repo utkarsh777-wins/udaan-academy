@@ -13,6 +13,7 @@ import {
   includesTerm,
   isPersonName,
   parseUtterance,
+  questionAboutTrialEligibility,
   type Intent,
   type ParseResult,
 } from "@/lib/chat/parser";
@@ -50,6 +51,15 @@ export function counsel(options: {
   const incoming = options.draft ?? {};
   const parsed = parseUtterance(options.text, now);
 
+  if (isCancel(options.text) && hasStarted(incoming)) {
+    return {
+      reply: cancelledReply(language),
+      draft: {},
+      ready: false,
+      intent: "book",
+    };
+  }
+
   if (
     (parsed.intent === "admission" || parsed.intent === "eligibility" || parsed.intent === "status") &&
     !incoming.confirming
@@ -58,7 +68,9 @@ export function counsel(options: {
       parsed.intent === "admission"
         ? admissionAnswer(parsed, language)
         : parsed.intent === "eligibility"
-          ? eligibilityAnswer(parsed, language)
+          ? questionAboutTrialEligibility(options.text)
+            ? trialFreeReply(language)
+            : eligibilityAnswer(parsed, language)
           : statusAnswer(language);
     const pending = hasStarted(incoming) ? firstMissing(incoming) : null;
     return {
@@ -73,6 +85,15 @@ export function counsel(options: {
     return {
       reply: academy.counsellor.changeField[language],
       draft: { ...incoming, active: true, confirming: false },
+      ready: false,
+      intent: "book",
+    };
+  }
+
+  if (incoming.confirming && isHedged(options.text)) {
+    return {
+      reply: clearYesReply(language),
+      draft: incoming,
       ready: false,
       intent: "book",
     };
@@ -183,12 +204,100 @@ const YES = new Set([
   "जी हां",
   "ठीक",
   "ठीक है",
+  "theek hai",
+  "thik hai",
+  "theek",
   "ਹਾਂ",
   "ਹਾਂ ਜੀ",
   "ਠੀਕ",
   "ਠੀਕ ਹੈ",
   "ਠੀਕ ਹੈ ਜੀ",
 ]);
+
+const CANCEL_PHRASES = new Set(
+  [
+    "cancel",
+    "cancel it",
+    "cancelled",
+    "stop",
+    "stop it",
+    "ruko",
+    "ruk",
+    "ruk jao",
+    "never mind",
+    "nevermind",
+    "forget it",
+    "रुको",
+    "रुकिए",
+    "रुक जाओ",
+    "रद्द",
+    "रद्द करो",
+    "रद्द करें",
+    "रद्द कर दो",
+    "कैंसिल",
+    "कैंसल",
+    "छोड़ो",
+    "छोड़ दो",
+    "ਭੁੱਲੋ",
+    "ਰੁਕੋ",
+    "ਰੱਦ",
+    "ਰੱਦ ਕਰੋ",
+    "ਛੱਡੋ",
+    "ਕੈਂਸਲ",
+  ].map((phrase) => phrase.normalize("NFC").toLowerCase()),
+);
+
+function isCancel(text: string): boolean {
+  const normalized = text
+    .normalize("NFC")
+    .replace(/[।!?.,]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  const stripped = normalized
+    .replace(/^(?:please|plz|जी|ji|ਜੀ)\s+/u, "")
+    .replace(/\s+(?:please|plz|जी|ji|ਜੀ)$/u, "");
+  return CANCEL_PHRASES.has(stripped);
+}
+
+function isHedged(text: string): boolean {
+  if (/[?？]/.test(text)) return true;
+  const folded = text.normalize("NFC").toLowerCase();
+  return ["maybe", "perhaps", "probably", "i think", "i guess", "not sure", "kinda", "sort of", "शायद", "ਸ਼ਾਇਦ", "lagta", "लगता"].some(
+    (hedge) => folded.includes(hedge),
+  );
+}
+
+function cancelledReply(language: Language): string {
+  if (language === "hi") return speak("hi", ["ट्रायल का अनुरोध रोक दिया", "कुछ नहीं भेजा गया"]);
+  if (language === "pa") return speak("pa", ["ਟਰਾਇਲ ਦੀ ਬੇਨਤੀ ਰੋਕ ਦਿੱਤੀ", "ਕੁਝ ਨਹੀਂ ਭੇਜਿਆ"]);
+  return speak("en", ["I’ve stopped this trial request", "Nothing was sent"]);
+}
+
+function clearYesReply(language: Language): string {
+  if (language === "hi") return speak("hi", ["भेजना हो तो साफ हाँ लिखिए"]);
+  if (language === "pa") return speak("pa", ["ਭੇਜਣਾ ਹੋਵੇ ਤਾਂ ਸਾਫ਼ ਹਾਂ ਲਿਖੋ"]);
+  return speak("en", ["Please say yes if I should send this"]);
+}
+
+function trialFreeReply(language: Language): string {
+  if (language === "hi") {
+    return speak("hi", [
+      "हाँ, ट्रायल क्लास फ्री है",
+      "क्लास 11 के लिए JEE फाउंडेशन, NEET फाउंडेशन, पंजाब बोर्ड और स्पोकन इंग्लिश बैठते हैं",
+    ]);
+  }
+  if (language === "pa") {
+    return speak("pa", [
+      "ਹਾਂ, ਟਰਾਇਲ ਕਲਾਸ ਫ੍ਰੀ ਹੈ",
+      "ਕਲਾਸ 11 ਲਈ JEE ਫਾਊਂਡੇਸ਼ਨ, NEET ਫਾਊਂਡੇਸ਼ਨ, ਪੰਜਾਬ ਬੋਰਡ ਅਤੇ ਸਪੋਕਨ ਇੰਗਲਿਸ਼ ਬੈਠਦੇ ਹਨ",
+    ]);
+  }
+  return speak("en", [
+    "Yes, the trial class is free",
+    "For class 11, JEE Foundation, NEET Foundation, Punjab board tuition, and Spoken English are the ones that fit",
+  ]);
+}
 
 function isAffirmative(text: string): boolean {
   const normalized = text
@@ -862,6 +971,30 @@ export function bookingErrorReply(
     return speak("pa", ["ਕੁਝ ਗੱਲ ਅਧੂਰੀ ਹੈ, ਨਾਮ, ਫੋਨ, ਕੋਰਸ, ਬੈਚ ਅਤੇ ਤਾਰੀਖ ਦੁਬਾਰਾ ਦੇਖ ਲਵੋ"]);
   }
   return speak("en", [detail ?? "Something’s missing. Check the name, phone, course, batch, and date."]);
+}
+
+export function formServerMessage(
+  language: Language,
+  body: {
+    message?: string;
+    error?: string;
+    fields?: string[];
+    limit?: "phone" | "ip" | "site";
+    dateReason?: "window" | "weekday" | "ended";
+  },
+): string {
+  const error =
+    body.error === "rate_limit" || body.error === "duplicate_phone" || body.error === "invalid" || body.error === "bad_json"
+      ? body.error
+      : "invalid";
+  return bookingErrorReply(
+    language,
+    error,
+    language === "en" ? body.message : undefined,
+    body.fields,
+    body.limit,
+    body.dateReason,
+  );
 }
 
 export function languageSwitched(language: Language): string {

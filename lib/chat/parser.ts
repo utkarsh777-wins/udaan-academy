@@ -1,5 +1,6 @@
 import { academy, type BatchId, type Course } from "@/lib/academy";
 import { addISODays, isISODate, todayISO, toISODate } from "@/lib/dates";
+import { weekdayIndex } from "@/lib/schedule";
 
 export type Intent =
   | "greeting"
@@ -449,6 +450,24 @@ function extractName(text: string): string | null {
     const name = cleanName(match[1]);
     if (name) return name;
   }
+  return nameBesidePhone(source);
+}
+
+function nameBesidePhone(source: string): string | null {
+  const folded = fold(source);
+  const match = folded.match(/(?<!\d)(?:\+?91[\s-]*|0)?[6-9](?:[\s-]*\d){9}(?!\d)/);
+  if (!match || match.index == null) return null;
+  const before = source.slice(0, match.index);
+  const segment = before.split(/[।.!?]/u).at(-1) ?? before;
+  const words = segment
+    .replace(/[,，:：]\s*$/u, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  for (let size = Math.min(3, words.length); size >= 1; size -= 1) {
+    const name = cleanName(words.slice(-size).join(" "));
+    if (name) return name;
+  }
   return null;
 }
 
@@ -462,11 +481,65 @@ function cleanName(value: string): string | null {
   return name;
 }
 
+const RESERVED_NAMES = new Set(
+  [
+    "cancel",
+    "cancelled",
+    "stop",
+    "stopped",
+    "ruko",
+    "ruk",
+    "wait",
+    "waiting",
+    "go",
+    "ahead",
+    "go ahead",
+    "theek",
+    "thik",
+    "theek hai",
+    "thik hai",
+    "ok",
+    "okay",
+    "sure",
+    "yes",
+    "haan",
+    "ठीक",
+    "ठीक है",
+    "ਰੁਕੋ",
+    "ਰੱਦ",
+    "रुको",
+    "रुकिए",
+    "रद्द",
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "रविवार",
+    "सोमवार",
+    "मंगलवार",
+    "बुधवार",
+    "गुरुवार",
+    "शुक्रवार",
+    "शनिवार",
+    "ਐਤਵਾਰ",
+    "ਸੋਮਵਾਰ",
+    "ਮੰਗਲਵਾਰ",
+    "ਬੁੱਧਵਾਰ",
+    "ਵੀਰਵਾਰ",
+    "ਸ਼ੁੱਕਰਵਾਰ",
+    "ਸ਼ਨੀਵਾਰ",
+  ].map(fold),
+);
+
 export function isPersonName(value: string): boolean {
   const name = value.trim();
   if (!/^[\p{L}\p{M}][\p{L}\p{M} .'-]{1,59}$/u.test(name)) return false;
   const words = name.split(/\s+/);
   if (words.length > 4) return false;
+  if (RESERVED_NAMES.has(fold(name))) return false;
   const blocked = new Set([
     "ielts",
     "pte",
@@ -545,7 +618,7 @@ export function isPersonName(value: string): boolean {
     "ਕਰਨੀ",
     "ਹੈ",
   ]);
-  if (words.some((word) => blocked.has(fold(word)))) return false;
+  if (words.some((word) => blocked.has(fold(word)) || RESERVED_NAMES.has(fold(word)))) return false;
   return true;
 }
 
@@ -596,7 +669,68 @@ function extractDate(text: string, now: Date): string | null {
     if (!yearToken && value < today) value = toISODate(year + 1, month, day);
     return value;
   }
+
+  for (const token of tokens) {
+    const weekday = WEEKDAY_NAMES[token];
+    if (weekday == null) continue;
+    return upcomingWeekday(weekday, now, text);
+  }
   return null;
+}
+
+const WEEKDAY_NAMES: Record<string, number> = Object.fromEntries(
+  (
+    [
+      ["sunday", 0],
+      ["monday", 1],
+      ["tuesday", 2],
+      ["wednesday", 3],
+      ["thursday", 4],
+      ["friday", 5],
+      ["saturday", 6],
+      ["रविवार", 0],
+      ["सोमवार", 1],
+      ["मंगलवार", 2],
+      ["बुधवार", 3],
+      ["गुरुवार", 4],
+      ["शुक्रवार", 5],
+      ["शनिवार", 6],
+      ["ਐਤਵਾਰ", 0],
+      ["ਸੋਮਵਾਰ", 1],
+      ["ਮੰਗਲਵਾਰ", 2],
+      ["ਬੁੱਧਵਾਰ", 3],
+      ["ਵੀਰਵਾਰ", 4],
+      ["ਸ਼ੁੱਕਰਵਾਰ", 5],
+      ["ਸ਼ਨੀਵਾਰ", 6],
+    ] as const
+  ).map(([name, day]) => [fold(name), day]),
+);
+
+function upcomingWeekday(target: number, now: Date, text: string): string {
+  const today = todayISO(now);
+  let delta = (target - weekdayIndex(today) + 7) % 7;
+  if (delta === 0 && (includesTerm(text, "next") || text.includes("अगले") || text.includes("ਅਗਲੇ"))) delta = 7;
+  return addISODays(today, delta);
+}
+
+export function questionAboutTrialEligibility(text: string): boolean {
+  const question = /[?？]/.test(text) || /^(?:is|are|can|who|does|do|what|क्या|ਕੀ)\b/iu.test(text.trim());
+  if (!question) return false;
+  const trial = includesTerm(text, "trial") || includesTerm(text, "ट्रायल") || includesTerm(text, "ਟਰਾਇਲ");
+  if (!trial) return false;
+  const about =
+    hasAny(text, ELIGIBILITY_TERMS) ||
+    includesTerm(text, "class") ||
+    includesTerm(text, "free") ||
+    text.includes("क्लास") ||
+    text.includes("कक्षा") ||
+    text.includes("ਕਲਾਸ") ||
+    text.includes("फ्री") ||
+    text.includes("फ़्री") ||
+    text.includes("ਫ੍ਰੀ");
+  const commandsBooking =
+    includesTerm(text, "book") || includesTerm(text, "sign up") || includesTerm(text, "बुक") || includesTerm(text, "ਬੁੱਕ");
+  return about && !commandsBooking;
 }
 
 const SOCIAL_GREETINGS = new Set(
@@ -673,7 +807,8 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
     !(phone && hasAny(prepared, ["my phone", "my number", "मेरा नंबर", "मेरा फोन", "ਮੇਰਾ ਨੰਬਰ", "ਮੇਰਾ ਫੋਨ"]));
 
   let intent: Intent = "unknown";
-  if (asksIfConfirmed(prepared)) intent = "status";
+  if (questionAboutTrialEligibility(prepared)) intent = "eligibility";
+  else if (asksIfConfirmed(prepared)) intent = "status";
   else if (hasAny(prepared, ELIGIBILITY_TERMS) && !hasAny(prepared, BOOK_VERBS)) intent = "eligibility";
   else if (hasAny(prepared, ADMISSION_TERMS) && !hasAny(prepared, BOOK_VERBS)) intent = "admission";
   else if (hasAny(prepared, BOOK_TERMS)) intent = "book";

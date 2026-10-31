@@ -288,6 +288,34 @@ describe("R3-B1 unknown client address", () => {
     expect(afterJunk.ok).toBe(true);
   });
 
+  it("R7 keeps a real date error after the junk cap is full", async () => {
+    for (let index = 0; index < 3; index += 1) {
+      const junk = await submitBooking({ x: 1 }, { ip: "203.0.113.77", now, webhookUrl: null });
+      expect(junk.ok).toBe(false);
+      if (!junk.ok) expect(junk.status).toBe(422);
+    }
+    const blocked = await submitBooking({ x: 1 }, { ip: "203.0.113.77", now, webhookUrl: null });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.status).toBe(429);
+      expect(blocked.message).toMatch(/Too many attempts/);
+    }
+    const weekday = await submitBooking(payload("9810000044", { date: "2026-11-08" }), {
+      ip: "203.0.113.77",
+      now,
+      webhookUrl: null,
+    });
+    expect(weekday.ok).toBe(false);
+    if (!weekday.ok) {
+      expect(weekday.status).toBe(422);
+      expect(weekday.dateReason).toBe("weekday");
+      expect(weekday.message).toMatch(/doesn't run/);
+    }
+    const stillJunk = await submitBooking({ x: 2 }, { ip: "203.0.113.77", now, webhookUrl: null });
+    expect(stillJunk.ok).toBe(false);
+    if (!stillJunk.ok) expect(stillJunk.status).toBe(429);
+  });
+
   it("still stops the site after 200 saved trials in an hour", async () => {
     for (let index = 0; index < 200; index += 1) {
       const result = await submitBooking(payload(`9${String(index).padStart(9, "0")}`), {
@@ -458,6 +486,33 @@ describe("route handlers", () => {
     expect(body.booking).toBeNull();
     expect(body.reply.toLowerCase()).toContain("trial");
     expect(body.reply.toLowerCase()).toContain("fee");
+  });
+
+  it("records the chat language on a saved trial", async () => {
+    const response = await postChat(
+      new Request("http://127.0.0.1:43123/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", host: "127.0.0.1:43123" },
+        body: JSON.stringify({
+          message: "yes",
+          language: "pa",
+          draft: {
+            active: true,
+            confirming: true,
+            name: "Simran",
+            phone: "9876511111",
+            course: "ielts-pte",
+            batch: "morning",
+            date: "2026-11-20",
+          },
+          history: [],
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    const saved = await listBookings();
+    expect(saved[0]?.language).toBe("pa");
+    expect(saved[0]?.source).toBe("chat");
   });
 
   it("localises a chat rate limit and keeps the draft", async () => {

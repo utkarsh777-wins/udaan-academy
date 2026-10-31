@@ -189,6 +189,7 @@ async function writeBooking(
   const nowMs = options.now.getTime();
   const parsed = input === undefined ? badJson() : validate(input, options.now, options.source);
   if (!parsed.ok) {
+    if (isSpecificValidation(parsed)) return parsed;
     if (!chargeJunk(options.ip, nowMs)) return connectionRateLimit();
     return parsed;
   }
@@ -364,6 +365,12 @@ function connectionRateLimit(): Extract<SubmitResult, { ok: false }> {
     limit: "ip",
     message: "Too many attempts from this connection. Wait ten minutes and try again.",
   };
+}
+
+function isSpecificValidation(result: Extract<SubmitResult, { ok: false }>): boolean {
+  if (result.error !== "invalid") return false;
+  const core = (result.fields ?? []).filter((field) => field !== "email" && field !== "language");
+  return core.length <= 2;
 }
 
 function chargeJunk(ip: string | null, nowMs: number): boolean {

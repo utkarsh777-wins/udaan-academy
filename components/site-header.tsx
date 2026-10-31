@@ -46,7 +46,7 @@ export function SiteHeader() {
               </small>
             </span>
           </Link>
-          <nav className="ml-3 hidden items-center gap-1 lg:flex" aria-label="Primary">
+          <nav className="ml-3 hidden items-center gap-1 lg:flex" aria-label={copy.navLabel}>
             {links.map((link) => {
               const current = link.href === "/contact" ? pathname === "/contact" : pathname === link.href || pathname.startsWith(`${link.href}/`);
               return (
@@ -93,12 +93,12 @@ export function SiteHeader() {
                   <LogoMark />
                   <SheetTitle className="ml-2 font-heading text-[21px] font-extrabold">{language === "hi" ? "उड़ान" : "Udaan"}</SheetTitle>
                   <SheetClose
-                    render={<Button variant="outline" size="icon" className="ml-auto size-10 rounded-full" aria-label={language === "hi" ? "मेनू बंद करें" : "Close menu"} />}
+                    render={<Button variant="outline" size="icon" className="ml-auto size-10 rounded-full" aria-label={copy.closeMenu} />}
                   >
                     <XIcon />
                   </SheetClose>
                 </div>
-                <nav className="flex flex-col px-5">
+                <nav className="flex flex-col px-5" aria-label={copy.navLabel}>
                   {links.map((link) => (
                     <Link
                       key={link.href}

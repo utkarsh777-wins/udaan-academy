@@ -65,6 +65,7 @@ export async function POST(request: Request) {
           course: result.draft.course,
           batch: result.draft.batch,
           date: result.draft.date,
+          language,
           source: "chat",
         }),
       }),

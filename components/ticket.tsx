@@ -6,16 +6,18 @@ export function Ticket({
   from,
   to,
   fields,
+  label,
   className,
 }: {
   eyebrow: string;
   from: string;
   to: string;
   fields: { label: string; value: string; mono?: boolean }[];
+  label: string;
   className?: string;
 }) {
   return (
-    <div role="group" aria-label="Trial class details" className={cn("rounded-[14px] border border-border bg-ticket shadow-md", className)}>
+    <div role="group" aria-label={label} className={cn("rounded-[14px] border border-border bg-ticket shadow-md", className)}>
       <div className="px-5 py-5">
         <p className="eyebrow">{eyebrow}</p>
         <div className="mt-3 flex items-center gap-3">
