@@ -404,6 +404,49 @@ function textWithoutName(text: string, name: string | null): string {
   return `${source.slice(0, at)} ${source.slice(at + target.length)}`;
 }
 
+const BATCH_PARTICLES = new Set(
+  ["ka", "ke", "ki", "kal", "wala", "instead", "the", "a", "please", "ji", "to", "का", "के", "की", "वाला", "कल", "ਦਾ", "ਦੇ", "ਦੀ", "ਵਾਲਾ"].map(fold),
+);
+
+export function mentionsBatchWord(text: string): boolean {
+  return /\bbatch(?:es)?\b/i.test(text) || text.includes("बैच") || text.includes("ਬੈਚ");
+}
+
+function isBatchAnswer(text: string): boolean {
+  if (mentionsBatchWord(text)) return true;
+  const tokens = tokenize(text).map(fold);
+  if (!tokens.some((token) => periodOf(token))) return false;
+  return tokens.every((token) => periodOf(token) || BATCH_PARTICLES.has(token));
+}
+
+function peelPerson(name: string | null): string | null {
+  if (!name) return null;
+  const trailed = trailingNameAndPeriod(name);
+  return trailed.name ?? name;
+}
+
+function trailingNameAndPeriod(text: string): { name: string | null; period: DayPeriod | null } {
+  const match = text
+    .trim()
+    .match(
+      /^(.*?)(?:[,，]\s*|\s+)(morning|evening|afternoon|subah|dopahar|shaam|sham|सुबह|दोपहर|शाम|ਸਵੇਰੇ?|ਦੁਪਹਿਰ|ਸ਼ਾਮ)(?:\s+(?:batch|बैच|ਬੈਚ))?$/iu,
+    );
+  if (!match) return { name: null, period: null };
+  const prefix = match[1].replace(/[,，]\s*$/u, "").trim();
+  const period = periodOf(match[2] ?? "");
+  if (!prefix || !isPersonName(prefix)) return { name: null, period: null };
+  return { name: prefix, period };
+}
+
+function resolvePeriod(text: string): DayPeriod | null {
+  if (isBatchAnswer(text) || isBookingCommand(text)) return periodFromTokens(tokenize(text));
+  const trailed = trailingNameAndPeriod(text).period;
+  if (trailed) return trailed;
+  const plain = text.trim().replace(/[।.!?]+$/u, "");
+  if (isPersonName(plain) && !mentionsBatchWord(plain)) return null;
+  return periodFromTokens(tokenize(text));
+}
+
 function periodFromTokens(tokens: string[]): DayPeriod | null {
   let period: DayPeriod | null = null;
   for (const token of tokens) {
@@ -507,7 +550,7 @@ export function explicitName(text: string): string | null {
     for (const { pattern, allowMixed } of NAME_PATTERNS) {
       const match = source.match(pattern);
       if (!match) continue;
-      const name = cleanName(match[1] ?? "", allowMixed);
+      const name = peelPerson(cleanName(match[1] ?? "", allowMixed));
       if (name) return name;
     }
   }
@@ -524,7 +567,7 @@ function fillOnlyName(text: string): string | null {
   for (const pattern of patterns) {
     const match = source.match(pattern);
     if (!match) continue;
-    const name = cleanName(match[1]);
+    const name = peelPerson(cleanName(match[1]));
     if (name) return name;
   }
   return null;
@@ -957,7 +1000,8 @@ export function isPersonName(value: string): boolean {
       "ਪਿਤਾ",
     ].map(fold),
   );
-  if (/^(?:one|ek)\s+minutes?$/i.test(fold(name))) return false;
+  if (/^(?:one|ek)\s+(?:minutes?|secs?|seconds?)$/i.test(fold(name))) return false;
+  if (mentionsBatchWord(name)) return false;
   if (words.some((word) => blocked.has(fold(word)) || RESERVED_NAMES.has(fold(word)))) return false;
   const honorifics = new Set(["ji", "जी", "ਜੀ"].map(fold));
   const particles = new Set(["ka", "ke", "ki", "ko", "nu", "da", "de", "di", "wala", "का", "के", "की", "को", "वाला", "ਦਾ", "ਦੇ", "ਦੀ", "ਨੂੰ", "ਵਾਲਾ"].map(fold));
@@ -1283,10 +1327,10 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
   const { partySize, time } = scanQuantities(tokens);
   const phone = extractPhone(prepared);
   const named = extractName(prepared);
-  const plainUtterance = prepared.trim().replace(/[।.!?]+$/u, "");
-  const nameSpan = named.name ?? (isPersonName(plainUtterance) ? plainUtterance : null);
-  const period = periodFromTokens(tokenize(textWithoutName(prepared, nameSpan)));
-  const batch = batchFrom(period, time);
+  const trailed = trailingNameAndPeriod(prepared);
+  const resolvedName = named.name ?? trailed.name;
+  const period = resolvePeriod(textWithoutName(prepared, resolvedName));
+  const batch = batchFrom(period, resolvedName ? null : time);
   const date = extractDate(prepared, now);
 
   const askingPhone = !phone && hasAny(prepared, PHONE_ASK);
@@ -1316,8 +1360,8 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
     time,
     partySize,
     phone,
-    name: named.name,
-    nameExplicit: named.explicit,
+    name: resolvedName,
+    nameExplicit: named.explicit || Boolean(trailed.name),
     date,
     greeting: false,
   };

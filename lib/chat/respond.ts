@@ -17,6 +17,7 @@ import {
   explicitName,
   explicitNameRejection,
   isBareWrong,
+  mentionsBatchWord,
   isLoneWeakConfirm,
   fold,
   includesTerm,
@@ -80,7 +81,7 @@ export function counsel(options: {
 
   if (incoming.pendingName) {
     const pendingName = incoming.pendingName;
-    const pieces = options.text.split(/\band\b/iu).map((part) => part.trim()).filter(Boolean);
+    const pieces = options.text.split(/\band\b|[,，]/iu).map((part) => part.trim()).filter(Boolean);
     const yesPart = isRenameYes(options.text, pendingName) || pieces.some((part) => isRenameYes(part, pendingName));
     if (yesPart && specifiesFieldChange(parsed)) {
       incoming = { ...incoming, name: pendingName, pendingName: undefined };
@@ -90,9 +91,10 @@ export function counsel(options: {
       return resumeDraft({ ...incoming, pendingName: undefined }, language);
     } else if (isRenameBypass(options.text, parsed, pendingName)) {
       const follow = counsel({ text: options.text, language, draft: { ...incoming, pendingName: undefined }, now });
+      const fieldOnly = specifiesFieldChange(parsed) && !isSubstantiveQuestion(options.text);
       return {
-        reply: [follow.reply, renameQuestion(language, pendingName)].filter(Boolean).join(" "),
-        draft: { ...follow.draft, name: incoming.name, pendingName, active: true },
+        reply: fieldOnly ? renameQuestion(language, pendingName) : [follow.reply, renameQuestion(language, pendingName)].filter(Boolean).join(" "),
+        draft: { ...follow.draft, name: incoming.name, pendingName, active: true, confirming: false },
         ready: false,
         intent: "book",
       };
@@ -207,7 +209,10 @@ export function counsel(options: {
   }
 
   const base = incoming.confirming ? { ...incoming, confirming: false } : incoming;
-  const booking = parsed.intent === "book" || hasStarted(base) || incoming.confirming;
+  const fillsBooking = Boolean(
+    parsed.name && [Boolean(parsed.phone), parsed.courses.length === 1, Boolean(parsed.batch), Boolean(parsed.date)].filter(Boolean).length >= 2,
+  );
+  const booking = parsed.intent === "book" || hasStarted(base) || incoming.confirming || fillsBooking;
   if (!booking) {
     const stated = explicitName(options.text);
     const keepName = Boolean(stated && (isSubstantiveQuestion(options.text) || isOnlineQuestion(options.text)));
@@ -339,7 +344,6 @@ const CANCEL_PHRASES = [
   "cancel this",
   "stop",
   "stop it",
-  "ruko",
   "rehne do",
   "रहने दो",
   "never mind",
@@ -368,7 +372,7 @@ const CANCEL_PHRASES = [
 ].map((phrase) => phrase.normalize("NFC").toLowerCase());
 
 const CANCEL_TOKENS = new Set(
-  ["cancel", "stop", "ruko", "rehne", "रुको", "रुकिए", "रद्द", "कैंसल", "कैंसिल", "छोड़ो", "ਰੁਕੋ", "ਰੱਦ", "ਛੱਡੋ", "ਕੈਂਸਲ"].map((word) =>
+  ["cancel", "stop", "rehne", "रुको", "रुकिए", "रद्द", "कैंसल", "कैंसिल", "छोड़ो", "ਰੁਕੋ", "ਰੱਦ", "ਛੱਡੋ", "ਕੈਂਸਲ"].map((word) =>
     word.normalize("NFC").toLowerCase(),
   ),
 );
@@ -993,7 +997,7 @@ function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
   const pending = firstMissing(next);
   if (parsed.nameExplicit && parsed.name && !next.name) next.name = parsed.name;
   else if (!next.name && parsed.name) next.name = parsed.name;
-  else if (!next.name && pending === "name" && parsed.intent !== "book") {
+  else if (!next.name && pending === "name" && parsed.intent !== "book" && !mentionsBatchWord(text)) {
     const spoken = spokenName(text);
     if (spoken) next.name = spoken;
   }
