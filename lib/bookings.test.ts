@@ -164,6 +164,17 @@ describe("POST /api/bookings", () => {
       expect(sunday.message).toMatch(/doesn't run/);
       expect(sunday.message).toMatch(/next open day/i);
     }
+    const several = await submitBooking(payload("12345", { name: "", date: "2026-11-08" }), {
+      ip: "10.7.0.2",
+      now,
+      webhookUrl: null,
+    });
+    expect(several.ok).toBe(false);
+    if (!several.ok) {
+      expect(several.message).toMatch(/Add the name/);
+      expect(several.message).toMatch(/10-digit/);
+      expect(several.message).toMatch(/doesn't run/);
+    }
   });
 
   it("B8 ignores a spoofed forwarding header and also limits one phone", async () => {

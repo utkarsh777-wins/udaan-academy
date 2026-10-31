@@ -102,6 +102,21 @@ export function ChatWidget() {
   }, [open]);
 
   useEffect(() => {
+    if (!open) return;
+    const media = window.matchMedia?.("(max-width: 767px)");
+    if (!media) return;
+    const lock = () => {
+      document.body.style.overflow = media.matches ? "hidden" : "";
+    };
+    lock();
+    media.addEventListener("change", lock);
+    return () => {
+      media.removeEventListener("change", lock);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  useEffect(() => {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight });
   }, [messages, open, pending]);
 
@@ -307,7 +322,7 @@ export function ChatWidget() {
                   { label: language === "hi" ? "कोर्स" : language === "pa" ? "ਕੋਰਸ" : "Course", value: bookedView.name },
                   {
                     label: language === "hi" ? "बैच" : language === "pa" ? "ਬੈਚ" : "Batch",
-                    value: draft.batch ? batchLabel(draft.batch, language) : bookedBatch.label,
+                    value: draft.batch ? (language === "en" ? batchLabel(draft.batch, "en").replace(/^./, (letter) => letter.toUpperCase()) : batchLabel(draft.batch, language)) : bookedBatch.label,
                   },
                   { label: language === "hi" ? "तारीख" : language === "pa" ? "ਤਾਰੀਖ" : "Date", value: draft.date ? formatLongDate(draft.date, language) : "", mono: true },
                   { label: language === "hi" ? "समय" : language === "pa" ? "ਸਮਾਂ" : "Time", value: bookedBatch.time, mono: true },

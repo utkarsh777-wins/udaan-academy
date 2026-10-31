@@ -116,9 +116,16 @@ export function TrialForm() {
         dateReason?: "window" | "weekday" | "ended";
       };
       if (!response.ok || !body.booking) {
-        focusFormError.current = true;
-        setErrors({ form: body.error || body.message ? formServerMessage(language, body) : copy.errForm });
+        const server: Errors = { form: body.error || body.message ? formServerMessage(language, body) : copy.errForm };
+        if (body.fields?.includes("name")) server.name = copy.errName;
+        if (body.fields?.includes("phone")) server.phone = copy.errPhone;
+        if (body.fields?.includes("course")) server.course = copy.errCourse;
+        if (body.fields?.includes("batch")) server.batch = copy.errBatch;
+        if (body.fields?.includes("date")) server.date = copy.errDate;
+        focusFormError.current = !server.name && !server.phone && !server.course && !server.batch && !server.date;
+        setErrors(server);
         setReview(false);
+        if (!focusFormError.current) focusFirstInvalid(server);
         return;
       }
       setReference(body.booking.id);

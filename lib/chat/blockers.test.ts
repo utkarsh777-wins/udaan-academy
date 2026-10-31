@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { getCourse } from "@/lib/academy";
-import { counsel, formServerMessage } from "@/lib/chat/respond";
+import { counsel, formServerMessage, savedBookingReply } from "@/lib/chat/respond";
 import { parseUtterance } from "@/lib/chat/parser";
+import { formatLongDate } from "@/lib/dates";
 
 const now = new Date("2026-10-31T08:00:00.000Z");
 
@@ -403,5 +404,118 @@ describe("blocker regressions", () => {
     expect(booked.draft.date).toBe("2026-11-03");
     expect(booked.draft.course).toBe("ielts-pte");
     expect(booked.draft.batch).toBe("morning");
+  });
+
+  it("R8 keeps junk in front of a phone from becoming the name", () => {
+    const phone = "9876543210";
+    const kept = { active: true, name: "Simran Kaur" };
+    for (const phrase of [
+      `call me at ${phone}`,
+      `my number is ${phone}`,
+      `thanks ${phone}`,
+      `my son ${phone}`,
+      `Phagwara ${phone}`,
+      `करना ${phone}`,
+      `कर दो ${phone}`,
+      `मेरा ${phone}`,
+      `कृपया ${phone}`,
+      `ਕਰੋ ${phone}`,
+      `ਜੀ ${phone}`,
+    ]) {
+      expect(parseUtterance(phrase, now).name, phrase).toBeNull();
+      const result = counsel({ text: phrase, language: "en", draft: kept, now });
+      expect(result.draft.name, phrase).toBe("Simran Kaur");
+    }
+    const cancelled = counsel({
+      text: "कैंसल कर दो",
+      language: "hi",
+      draft: { active: true, name: "Simran", phone, course: "ielts-pte", batch: "morning" },
+      now,
+    });
+    expect(cancelled.draft.name).toBeUndefined();
+    expect(cancelled.draft.course).toBeUndefined();
+    expect(cancelled.ready).toBe(false);
+    expect(counsel({ text: "Simran Stopford", language: "en", draft: { active: true }, now }).draft.name).toBe("Simran Stopford");
+    expect(parseUtterance("Book IELTS morning trial for Tuesday. Simran, 9876543210", now).name).toBe("Simran");
+  });
+
+  it("R8 answers eligibility from the class, and leaves timing and teachers alone", () => {
+    const class8 = counsel({ text: "Is the trial free for class 8?", language: "en", now });
+    expect(class8.intent).toBe("eligibility");
+    expect(class8.draft.active).toBeUndefined();
+    expect(class8.reply).toContain("Spoken English");
+    expect(class8.reply).toContain("Class 8 and above");
+    expect(class8.reply).not.toContain("JEE Foundation");
+
+    const class9 = counsel({ text: "Is the trial free for class 9?", language: "en", now });
+    expect(class9.reply).toContain("Punjab Board Tuition");
+    expect(class9.reply).toContain("Spoken English");
+    expect(class9.reply).not.toContain("JEE Foundation");
+
+    const class10 = counsel({ text: "Is the trial free for class 10?", language: "en", now });
+    expect(class10.reply).toContain("classes 9, 10, 11, or 12");
+    expect(class10.reply).not.toContain("JEE Foundation");
+
+    const class12 = counsel({ text: "Is the trial free for class 12?", language: "en", now });
+    expect(class12.reply).toContain("IELTS");
+    expect(class12.reply).toContain("JEE Foundation");
+    expect(class12.reply).toContain("class 12");
+
+    const timing = counsel({ text: "What time is the IELTS trial class?", language: "en", now });
+    expect(timing.intent).toBe("batches");
+    expect(timing.ready).toBe(false);
+    expect(timing.draft.name).toBeUndefined();
+    expect(timing.reply).toMatch(/7:00/);
+    expect(timing.reply).not.toContain("For class 11");
+
+    const teacher = counsel({ text: "Who teaches the IELTS trial class?", language: "en", now });
+    expect(teacher.intent).not.toBe("book");
+    expect(teacher.draft.active).toBeUndefined();
+    expect(teacher.reply).toContain("Harleen Kaur");
+    expect(teacher.reply).not.toContain("For class 11");
+
+    const monday = counsel({ text: "Can I attend a trial class on Monday?", language: "en", now });
+    expect(monday.intent).toBe("book");
+    expect(monday.draft.date).toBe("2026-11-02");
+    expect(monday.ready).toBe(false);
+    expect(monday.reply.toLowerCase()).not.toContain("for class 11");
+  });
+
+  it("R8 confirms go ahead and picks the weekday tied to the booking", () => {
+    const confirming = {
+      active: true,
+      confirming: true,
+      name: "Simran",
+      phone: "9876543210",
+      course: "ielts-pte",
+      batch: "morning" as const,
+      date: "2026-11-20",
+    };
+    expect(counsel({ text: "go ahead", language: "en", draft: confirming, now }).ready).toBe(true);
+    expect(counsel({ text: "आगे बढ़ो", language: "hi", draft: confirming, now }).ready).toBe(true);
+    expect(parseUtterance("I can't come Monday, book the trial for Friday", now).date).toBe("2026-11-06");
+    expect(parseUtterance("Book Monday, Friday is too late", now).date).toBe("2026-11-02");
+  });
+
+  it("R8 formats Punjabi dates without a garbled month and lists every failed field", () => {
+    expect(formatLongDate("2026-11-03", "pa")).toBe("ਮੰਗਲ, 3 ਨਵੰਬਰ 2026");
+    expect(formatLongDate("2026-11-03", "pa")).not.toContain("M11");
+    const reply = savedBookingReply("pa", {
+      id: "UA-TEST",
+      name: "ਸਿਮਰਨ",
+      course: "ielts-pte",
+      batch: "morning",
+      date: "2026-11-03",
+    });
+    expect(reply).toContain("ਨਵੰਬਰ");
+    expect(reply).not.toContain("M11");
+    const hindi = formServerMessage("hi", {
+      error: "invalid",
+      fields: ["phone", "date"],
+      dateReason: "weekday",
+      message: "Use a 10-digit mobile number. That batch doesn't run on that day.",
+    });
+    expect(hindi).toContain("दस अंक");
+    expect(hindi).toContain("बैच के दिन नहीं");
   });
 });

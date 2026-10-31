@@ -10,8 +10,10 @@ import {
 import { addISODays, formatLongDate, todayISO } from "@/lib/dates";
 import { batchHasEnded, nextOpenDate, weekdayIndex } from "@/lib/schedule";
 import {
+  classYear,
   includesTerm,
   isPersonName,
+  isStaffQuestion,
   parseUtterance,
   questionAboutTrialEligibility,
   type Intent,
@@ -69,7 +71,7 @@ export function counsel(options: {
         ? admissionAnswer(parsed, language)
         : parsed.intent === "eligibility"
           ? questionAboutTrialEligibility(options.text)
-            ? trialFreeReply(language)
+            ? trialFreeReply(language, options.text)
             : eligibilityAnswer(parsed, language)
           : statusAnswer(language);
     const pending = hasStarted(incoming) ? firstMissing(incoming) : null;
@@ -175,6 +177,7 @@ export function counsel(options: {
 }
 
 function answer(parsed: ParseResult, text: string, language: Language): string {
+  if (isStaffQuestion(text)) return facultyAnswer(parsed, language);
   if (parsed.intent === "greeting") return openingGreeting(language);
   if (parsed.intent === "off_topic") return offTopic(language);
   if (parsed.intent === "phone") return phoneAnswer(language);
@@ -207,6 +210,9 @@ const YES = new Set([
   "theek hai",
   "thik hai",
   "theek",
+  "go ahead",
+  "आगे बढ़ो",
+  "आगे बढ़िए",
   "ਹਾਂ",
   "ਹਾਂ ਜੀ",
   "ਠੀਕ",
@@ -214,50 +220,30 @@ const YES = new Set([
   "ਠੀਕ ਹੈ ਜੀ",
 ]);
 
-const CANCEL_PHRASES = new Set(
-  [
-    "cancel",
-    "cancel it",
-    "cancelled",
-    "stop",
-    "stop it",
-    "ruko",
-    "ruk",
-    "ruk jao",
-    "never mind",
-    "nevermind",
-    "forget it",
-    "रुको",
-    "रुकिए",
-    "रुक जाओ",
-    "रद्द",
-    "रद्द करो",
-    "रद्द करें",
-    "रद्द कर दो",
-    "कैंसिल",
-    "कैंसल",
-    "छोड़ो",
-    "छोड़ दो",
-    "ਭੁੱਲੋ",
-    "ਰੁਕੋ",
-    "ਰੱਦ",
-    "ਰੱਦ ਕਰੋ",
-    "ਛੱਡੋ",
-    "ਕੈਂਸਲ",
-  ].map((phrase) => phrase.normalize("NFC").toLowerCase()),
-);
+const CANCEL_TERMS = [
+  "cancel",
+  "cancelled",
+  "cancellation",
+  "stop",
+  "ruko",
+  "never mind",
+  "nevermind",
+  "forget it",
+  "रुको",
+  "रुकिए",
+  "रद्द",
+  "कैंसिल",
+  "कैंसल",
+  "छोड़ो",
+  "ਭੁੱਲੋ",
+  "ਰੁਕੋ",
+  "ਰੱਦ",
+  "ਛੱਡੋ",
+  "ਕੈਂਸਲ",
+];
 
 function isCancel(text: string): boolean {
-  const normalized = text
-    .normalize("NFC")
-    .replace(/[।!?.,]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-  const stripped = normalized
-    .replace(/^(?:please|plz|जी|ji|ਜੀ)\s+/u, "")
-    .replace(/\s+(?:please|plz|जी|ji|ਜੀ)$/u, "");
-  return CANCEL_PHRASES.has(stripped);
+  return CANCEL_TERMS.some((term) => includesTerm(text, term));
 }
 
 function isHedged(text: string): boolean {
@@ -280,23 +266,60 @@ function clearYesReply(language: Language): string {
   return speak("en", ["Please say yes if I should send this"]);
 }
 
-function trialFreeReply(language: Language): string {
-  if (language === "hi") {
-    return speak("hi", [
-      "हाँ, ट्रायल क्लास फ्री है",
-      "क्लास 11 के लिए JEE फाउंडेशन, NEET फाउंडेशन, पंजाब बोर्ड और स्पोकन इंग्लिश बैठते हैं",
-    ]);
-  }
-  if (language === "pa") {
-    return speak("pa", [
-      "ਹਾਂ, ਟਰਾਇਲ ਕਲਾਸ ਫ੍ਰੀ ਹੈ",
-      "ਕਲਾਸ 11 ਲਈ JEE ਫਾਊਂਡੇਸ਼ਨ, NEET ਫਾਊਂਡੇਸ਼ਨ, ਪੰਜਾਬ ਬੋਰਡ ਅਤੇ ਸਪੋਕਨ ਇੰਗਲਿਸ਼ ਬੈਠਦੇ ਹਨ",
-    ]);
-  }
-  return speak("en", [
-    "Yes, the trial class is free",
-    "For class 11, JEE Foundation, NEET Foundation, Punjab board tuition, and Spoken English are the ones that fit",
-  ]);
+function courseAllowsClass(course: Course, year: number): boolean {
+  const text = course.eligibility.toLowerCase();
+  if (/class\s+8\s+and\s+above/.test(text) && year >= 8 && year <= 12) return true;
+  const years = [...text.matchAll(/\b(8|9|10|11|12)\b/g)].map((match) => Number(match[1]));
+  return years.includes(year);
+}
+
+function trialFreeReply(language: Language, text: string): string {
+  const year = classYear(text);
+  const courses = year ? academy.courses.filter((course) => courseAllowsClass(course, year)) : [];
+  const rules = courses.map((course) => {
+    const name = shownCourse(course, language);
+    const rule = language === "hi" ? course.eligibilityHi : language === "pa" ? course.eligibilityPa : course.eligibility;
+    return `${name}: ${rule}`;
+  });
+  const heading =
+    language === "hi"
+      ? year
+        ? `क्लास ${year} के लिए ये कोर्स बैठते हैं`
+        : "किस क्लास के लिए देखना है?"
+      : language === "pa"
+        ? year
+          ? `ਕਲਾਸ ${year} ਲਈ ਇਹ ਕੋਰਸ ਬੈਠਦੇ ਹਨ`
+          : "ਕਿਸ ਕਲਾਸ ਲਈ ਦੇਖਣਾ ਹੈ?"
+        : year
+          ? `For class ${year}, these courses fit`
+          : "Which class should I check?";
+  const free =
+    language === "hi" ? "हाँ, ट्रायल क्लास फ्री है" : language === "pa" ? "ਹਾਂ, ਟਰਾਇਲ ਕਲਾਸ ਫ੍ਰੀ ਹੈ" : "Yes, the trial class is free";
+  return speak(language, [free, heading, ...rules]);
+}
+
+function facultyAnswer(parsed: ParseResult, language: Language): string {
+  const matched = academy.faculty.filter((person) => {
+    if (parsed.courses.length === 0) return true;
+    const role = person.role.toLowerCase();
+    return parsed.courses.some((slug) => {
+      if (slug === "ielts-pte") return role.includes("ielts");
+      if (slug === "jee-foundation") return role.includes("jee");
+      if (slug === "neet-foundation") return role.includes("neet");
+      if (slug === "punjab-board") return role.includes("punjab");
+      if (slug === "spoken-english") return role.includes("spoken");
+      return false;
+    });
+  });
+  const people = matched.length > 0 ? matched : academy.faculty;
+  const lines = people.map((person) => `${person.name}: ${person.role}`);
+  const note =
+    language === "hi"
+      ? "ये नाम टीचरों की जगह खड़े हैं, फ़ोटो नहीं"
+      : language === "pa"
+        ? "ਇਹ ਨਾਮ ਅਧਿਆਪਕਾਂ ਦੀ ਥਾਂ ਖੜ੍ਹੇ ਹਨ, ਫੋਟੋ ਨਹੀਂ"
+        : "These names stand in for the teachers. They are not photographs";
+  return speak(language, [note, ...lines]);
 }
 
 function isAffirmative(text: string): boolean {
@@ -308,6 +331,9 @@ function isAffirmative(text: string): boolean {
   const folded = normalized.toLowerCase();
   if (YES.has(folded) || YES.has(normalized)) return true;
   const starters = [
+    "go ahead",
+    "आगे बढ़ो",
+    "आगे बढ़िए",
     "yes please",
     "yes send it",
     "yes send",
@@ -452,8 +478,8 @@ function summaryReply(draft: Draft, language: Language): string {
 function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
   const next: Draft = { ...draft, confirming: false };
   const pending = firstMissing(next);
-  if (parsed.name) next.name = parsed.name;
-  else if (pending === "name" && parsed.intent !== "book" && isPersonName(stripPunctuation(text))) {
+  if (!next.name && parsed.name) next.name = parsed.name;
+  else if (!next.name && pending === "name" && parsed.intent !== "book" && isPersonName(stripPunctuation(text))) {
     next.name = stripPunctuation(text);
   }
   if (parsed.phone) next.phone = parsed.phone;
@@ -952,25 +978,39 @@ export function bookingErrorReply(
       "One trial per number per day",
     ]);
   }
-  if (language === "hi") {
-    if (fields?.includes("date") && dateReason === "ended") {
-      return "आज का यह बैच खत्म हो चुका है। कोई और दिन चुनिए।";
+  if (language === "hi" || language === "pa") {
+    const parts = invalidParts(language, fields, dateReason);
+    if (parts.length === 0) {
+      return language === "hi"
+        ? speak("hi", ["कुछ बात अधूरी है, नाम, फोन, कोर्स, बैच और तारीख फिर से देख लीजिए"])
+        : speak("pa", ["ਕੁਝ ਗੱਲ ਅਧੂਰੀ ਹੈ, ਨਾਮ, ਫੋਨ, ਕੋਰਸ, ਬੈਚ ਅਤੇ ਤਾਰੀਖ ਦੁਬਾਰਾ ਦੇਖ ਲਵੋ"]);
     }
-    if (fields?.includes("date") && dateReason !== "weekday") return windowHint("hi");
-    if (fields?.includes("date")) return speak("hi", ["यह तारीख इस बैच के दिन नहीं बैठती", "बैच वाले दिन की तारीख लिखिए"]);
-    if (fields?.includes("phone")) return speak("hi", ["फोन दस अंक का होना चाहिए, 6, 7, 8 या 9 से शुरू"]);
-    return speak("hi", ["कुछ बात अधूरी है, नाम, फोन, कोर्स, बैच और तारीख फिर से देख लीजिए"]);
-  }
-  if (language === "pa") {
-    if (fields?.includes("date") && dateReason === "ended") {
-      return "ਅੱਜ ਦਾ ਇਹ ਬੈਚ ਖਤਮ ਹੋ ਚੁੱਕਾ ਹੈ। ਕੋਈ ਹੋਰ ਦਿਨ ਚੁਣੋ।";
-    }
-    if (fields?.includes("date") && dateReason !== "weekday") return windowHint("pa");
-    if (fields?.includes("date")) return speak("pa", ["ਇਹ ਤਾਰੀਖ ਇਸ ਬੈਚ ਦੇ ਦਿਨ ਨਹੀਂ ਬੈਠਦੀ", "ਬੈਚ ਵਾਲੇ ਦਿਨ ਦੀ ਤਾਰੀਖ ਲਿਖੋ"]);
-    if (fields?.includes("phone")) return speak("pa", ["ਫੋਨ ਦਸ ਅੰਕਾਂ ਦਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ, 6, 7, 8 ਜਾਂ 9 ਤੋਂ ਸ਼ੁਰੂ"]);
-    return speak("pa", ["ਕੁਝ ਗੱਲ ਅਧੂਰੀ ਹੈ, ਨਾਮ, ਫੋਨ, ਕੋਰਸ, ਬੈਚ ਅਤੇ ਤਾਰੀਖ ਦੁਬਾਰਾ ਦੇਖ ਲਵੋ"]);
+    if (parts.length === 1 && fields?.length === 1 && fields[0] === "date" && dateReason === "ended") return parts[0];
+    if (parts.length === 1 && fields?.length === 1 && fields[0] === "date" && dateReason !== "weekday") return parts[0];
+    return speak(language, parts);
   }
   return speak("en", [detail ?? "Something’s missing. Check the name, phone, course, batch, and date."]);
+}
+
+function invalidParts(language: "hi" | "pa", fields?: string[], dateReason?: "window" | "weekday" | "ended"): string[] {
+  const parts: string[] = [];
+  const hi = language === "hi";
+  if (fields?.includes("name")) parts.push(hi ? "नाम लिखिए" : "ਨਾਮ ਲਿਖੋ");
+  if (fields?.includes("phone")) {
+    parts.push(hi ? "फोन दस अंक का होना चाहिए, 6, 7, 8 या 9 से शुरू" : "ਫੋਨ ਦਸ ਅੰਕਾਂ ਦਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ, 6, 7, 8 ਜਾਂ 9 ਤੋਂ ਸ਼ੁਰੂ");
+  }
+  if (fields?.includes("course") || fields?.includes("batch")) {
+    parts.push(hi ? "कोर्स और बैच चुनिए" : "ਕੋਰਸ ਅਤੇ ਬੈਚ ਚੁਣੋ");
+  }
+  if (fields?.includes("date") && dateReason === "ended") {
+    parts.push(hi ? "आज का यह बैच खत्म हो चुका है। कोई और दिन चुनिए।" : "ਅੱਜ ਦਾ ਇਹ ਬੈਚ ਖਤਮ ਹੋ ਚੁੱਕਾ ਹੈ। ਕੋਈ ਹੋਰ ਦਿਨ ਚੁਣੋ।");
+  } else if (fields?.includes("date") && dateReason === "weekday") {
+    parts.push(hi ? "यह तारीख इस बैच के दिन नहीं बैठती" : "ਇਹ ਤਾਰੀਖ ਇਸ ਬੈਚ ਦੇ ਦਿਨ ਨਹੀਂ ਬੈਠਦੀ");
+    parts.push(hi ? "बैच वाले दिन की तारीख लिखिए" : "ਬੈਚ ਵਾਲੇ ਦਿਨ ਦੀ ਤਾਰੀਖ ਲਿਖੋ");
+  } else if (fields?.includes("date")) {
+    parts.push(windowHint(language));
+  }
+  return parts;
 }
 
 export function formServerMessage(

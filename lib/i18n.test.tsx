@@ -218,6 +218,19 @@ describe("translated labels", () => {
   });
 });
 
+describe("course ticket width", () => {
+  it("lets the ticket row shrink instead of widening the page", () => {
+    mount(page(<CourseView slug="jee-foundation" />, "en"));
+    expect(host?.innerHTML).toContain("grid-cols-[minmax(0,1fr)]");
+    const ticket = host?.querySelector("[role=group]");
+    expect(ticket?.className).toContain("overflow-hidden");
+    expect(ticket?.className).toContain("min-w-0");
+    expect(ticket?.innerHTML).toContain("flex-wrap");
+    const aside = ticket?.parentElement;
+    expect(aside?.className).toContain("min-w-0");
+  });
+});
+
 describe("theme toggle", () => {
   it("exists and persists the choice", () => {
     expect(themeConfig.attribute).toBe("class");

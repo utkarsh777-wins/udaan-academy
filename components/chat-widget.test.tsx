@@ -31,6 +31,15 @@ function mount() {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   Element.prototype.scrollTo = () => undefined;
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }),
+  });
 });
 
 afterEach(() => {
@@ -64,5 +73,19 @@ describe("chat launcher focus", () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
     expect(document.activeElement).toBe(host?.querySelector("button[aria-haspopup='dialog']"));
+  });
+
+  it("locks body scroll on a narrow screen while the chat is open", () => {
+    mount();
+    const launcher = host?.querySelector("button") as HTMLButtonElement | null;
+    act(() => {
+      launcher?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(document.body.style.overflow).toBe("hidden");
+    const close = host?.querySelector("button[aria-label='Close counsellor']") as HTMLButtonElement | null;
+    act(() => {
+      close?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(document.body.style.overflow).toBe("");
   });
 });
