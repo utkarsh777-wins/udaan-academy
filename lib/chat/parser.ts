@@ -431,13 +431,50 @@ function extractPhone(text: string): string | null {
   return null;
 }
 
-function nameQuestion(text: string): boolean {
-  if (/[?？]/.test(text)) return true;
-  return /\b(?:kya|kaun|what|who)\b/i.test(text) || /क्या|कौन|ਕੀ|ਕੌਣ/u.test(text);
+const NAME_META = new Set(
+  [
+    "correct",
+    "right",
+    "perfect",
+    "same",
+    "ok",
+    "okay",
+    "fine",
+    "wrong",
+    "misspelled",
+    "spelt",
+    "spelled",
+    "mine",
+    "only",
+    "yes",
+    "no",
+    "sahi",
+    "theek",
+    "सही",
+    "ठीक",
+    "गलत",
+    "ਸਹੀ",
+    "ਠੀਕ",
+    "ਗਲਤ",
+    "ही",
+    "ਹੀ",
+    "kya",
+    "kaun",
+    "what",
+    "who",
+    "क्या",
+    "कौन",
+    "ਕੀ",
+    "ਕੌਣ",
+  ].map(fold),
+);
+
+function metaName(value: string): boolean {
+  const words = value.split(/\s+/).filter(Boolean);
+  return words.length > 0 && words.every((word) => NAME_META.has(fold(word)));
 }
 
 export function explicitName(text: string): string | null {
-  if (nameQuestion(text)) return null;
   const source = text.normalize("NFC").trim();
   const patterns = [
     /my name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
@@ -493,12 +530,14 @@ function nameBesidePhone(source: string): string | null {
 }
 
 function cleanName(value: string): string | null {
-  const cut = value.split(/\s+(?:and|aur|ਅਤੇ|phone|फोन|ਫੋਨ|,)/i)[0] ?? value;
+  const cut = value.split(/[।?!]|\s+(?:and|aur|ਅਤੇ|phone|फोन|ਫੋਨ|,)/i)[0] ?? value;
   const name = cut
     .replace(/[।.!?]+$/g, "")
+    .replace(/^(?:spelled|spelt)\s+/i, "")
     .replace(/(?:\s+(?:है|हैं|हूँ|हूं|जी|hai|ਹੈ|ਹਾਂ|ਜੀ))+$/iu, "")
+    .replace(/(?:\s+(?:only|ही|ਹੀ))+$/iu, "")
     .trim();
-  if (!isPersonName(name)) return null;
+  if (!name || metaName(name) || !isPersonName(name)) return null;
   return name;
 }
 
@@ -823,7 +862,7 @@ function clauseNegatesDay(clause: string): boolean {
 }
 
 function weekdayFromPositiveClauses(text: string): number | null {
-  const kept = text.split(/[,;]|\bbut\b/i).filter((part) => part.trim() && !clauseNegatesDay(part));
+  const kept = text.split(/[,;]|\bbut\b|\bso\b/i).filter((part) => part.trim() && !clauseNegatesDay(part));
   if (kept.length === 0) return null;
   return weekdayForBooking(tokenize(kept.join(" ")).map((token) => fold(token)));
 }
@@ -973,6 +1012,11 @@ export function isOnlineQuestion(text: string): boolean {
   return hasAny(text, ["online", "on line"]) || text.includes("ऑनलाइन") || text.includes("ਔਨਲਾਈਨ");
 }
 
+export function isTrialQuestion(text: string): boolean {
+  if (!mentionsTrial(text) || isBookingCommand(text) || isOnlineQuestion(text) || isDurationQuestion(text)) return false;
+  return /[?？]/.test(text) || /^(?:is|are|can|does|do|what|when|which|how|क्या|कब|ਕੀ|ਕਦੋਂ)\b/iu.test(text.trim());
+}
+
 export function isTrialInfoQuestion(text: string): boolean {
   if (!mentionsTrial(text) || isStaffQuestion(text)) return false;
   const question = /[?？]/.test(text) || /^(?:can|is|are|how|what|does|do|क्या|ਕੀ)\b/iu.test(text.trim());
@@ -1071,8 +1115,9 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
   else if (asksIfConfirmed(prepared)) intent = "status";
   else if (hasAny(prepared, ELIGIBILITY_TERMS) && !hasAny(prepared, BOOK_VERBS) && !isBookingCommand(prepared) && !isStaffQuestion(prepared)) intent = "eligibility";
   else if (hasAny(prepared, ADMISSION_TERMS) && !hasAny(prepared, BOOK_VERBS) && !isBookingCommand(prepared)) intent = "admission";
+  else if (isTrialQuestion(prepared)) intent = "batches";
   else if (isTimingQuestion(prepared) && !isBookingCommand(prepared)) intent = "batches";
-  else if ((hasAny(prepared, BOOK_TERMS) || isBookingCommand(prepared)) && !isTrialInfoQuestion(prepared)) intent = "book";
+  else if ((hasAny(prepared, BOOK_TERMS) || isBookingCommand(prepared)) && !isTrialInfoQuestion(prepared) && !isTrialQuestion(prepared)) intent = "book";
   else if (hasAny(prepared, FEE_TERMS)) intent = "fees";
   else if (askingPhone) intent = "phone";
   else if (hasAny(prepared, BATCH_TERMS) || period || time) intent = "batches";

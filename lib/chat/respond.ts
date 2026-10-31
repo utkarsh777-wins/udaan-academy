@@ -15,6 +15,7 @@ import {
   classYear,
   explicitName,
   includesTerm,
+  isBookingCommand,
   isDurationQuestion,
   isOnlineQuestion,
   isPersonName,
@@ -68,6 +69,29 @@ export function counsel(options: {
     };
   }
 
+  if (hasStarted(incoming) && !isBookingCommand(options.text)) {
+    const info = sideQuestion(options.text, parsed, language);
+    if (info) {
+      const stated = explicitName(options.text);
+      const draft = stated ? { ...incoming, name: stated } : incoming;
+      if (incoming.confirming) {
+        return {
+          reply: `${info} ${academy.counsellor.confirmAsk[language]}`,
+          draft: { ...draft, confirming: true, active: true },
+          ready: false,
+          intent: "book",
+        };
+      }
+      const pending = firstMissing(draft);
+      return {
+        reply: pending ? `${info} ${askFor(pending, language)}` : info,
+        draft,
+        ready: false,
+        intent: "book",
+      };
+    }
+  }
+
   if (
     (parsed.intent === "admission" || parsed.intent === "eligibility" || parsed.intent === "status") &&
     !incoming.confirming
@@ -107,7 +131,7 @@ export function counsel(options: {
     };
   }
 
-  if (incoming.confirming && isAffirmative(options.text)) {
+  if (incoming.confirming && (isAffirmative(options.text) || isReadyToSend(options.text))) {
     return {
       reply: speak(language, holding(language)),
       draft: { ...incoming, confirming: false, active: true },
@@ -290,15 +314,33 @@ function isCancel(text: string): boolean {
   }
   const withoutBusStop = folded.replace(/\bbus stop\b/g, " ");
   const stripped = withoutBusStop
-    .replace(/^(?:please|i want to|no)\s+/, "")
-    .replace(/\b(?:it|this|the booking|my booking|booking)\b/g, " ")
+    .replace(/^(?:please|i want to|no)\s+/u, "")
+    .replace(/\b(?:it|this|the booking|my booking|booking|the trial|trial)\b/g, " ")
+    .replace(/बुकिंग/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  const words = stripped.split(/\s+/).filter((word) => word && !CANCEL_FILLERS.has(word));
+  const helpers = new Set(["karo", "kar", "do", "करो", "कर", "दो", "दीजिए", "ਕਰੋ", "ਕਰ", "ਦਿਓ"].map((word) => word.normalize("NFC").toLowerCase()));
+  const words = stripped.split(/\s+/).filter((word) => word && !CANCEL_FILLERS.has(word) && !helpers.has(word));
   if (words.length === 0 || words.length > 4) return false;
   const phrase = words.join(" ");
   if (CANCEL_PHRASES.includes(phrase)) return true;
   return words.every((word) => CANCEL_TOKENS.has(word));
+}
+
+function isReadyToSend(text: string): boolean {
+  const trimmed = text.normalize("NFC").replace(/[।.!?]+$/g, "").replace(/\s+/g, " ").trim();
+  return /^(?:i am|i'm|main) ready$/i.test(trimmed) || /^मैं तैयार(?: हूँ| हूं| हैं)?$/u.test(trimmed) || /^ਮੈਂ ਤਿਆਰ ਹਾਂ$/u.test(trimmed) || /^(?:ready|तैयार|ਤਿਆਰ)$/u.test(trimmed);
+}
+
+function sideQuestion(text: string, parsed: ParseResult, language: Language): string | null {
+  if (isOnlineQuestion(text)) return trialOnlineReply(language);
+  if (isDurationQuestion(text) && (includesTerm(text, "trial") || text.includes("ट्रायल") || text.includes("ਟਰਾਇਲ"))) {
+    return trialLengthReply(language, parsed);
+  }
+  if (explicitName(text) && (parsed.intent === "fees" || parsed.intent === "batches" || parsed.intent === "phone" || isStaffQuestion(text))) {
+    return answer(parsed, text, language);
+  }
+  return null;
 }
 
 function isHedged(text: string): boolean {
@@ -896,6 +938,10 @@ function daysIn(language: Language, days: string): string {
       .replace("Sat–Sun", "ਸ਼ਨੀਵਾਰ ਅਤੇ ਐਤਵਾਰ");
   }
   return days;
+}
+
+export function formatBatchTime(time: string, language: Language): string {
+  return timeIn(language, time);
 }
 
 function timeIn(language: Language, time: string): string {

@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { MessageCircleIcon, SendIcon, XIcon } from "lucide-react";
 import { batchLabel, getCourse, type Language } from "@/lib/academy";
-import { openingGreeting, languageSwitched, type Draft } from "@/lib/chat/respond";
+import { formatBatchTime, openingGreeting, languageSwitched, type Draft } from "@/lib/chat/respond";
 import { courseCopy } from "@/lib/localize";
 import { formatLongDate } from "@/lib/dates";
 import { useSiteLang } from "@/components/language-provider";
@@ -345,7 +345,7 @@ export function ChatWidget() {
                     value: draft.batch ? (language === "en" ? batchLabel(draft.batch, "en").replace(/^./, (letter) => letter.toUpperCase()) : batchLabel(draft.batch, language)) : bookedBatch.label,
                   },
                   { label: language === "hi" ? "तारीख" : language === "pa" ? "ਤਾਰੀਖ" : "Date", value: draft.date ? formatLongDate(draft.date, language) : "", mono: true },
-                  { label: language === "hi" ? "समय" : language === "pa" ? "ਸਮਾਂ" : "Time", value: bookedBatch.time, mono: true },
+                  { label: language === "hi" ? "समय" : language === "pa" ? "ਸਮਾਂ" : "Time", value: formatBatchTime(bookedBatch.time, language), mono: true },
                 ]}
               />
               <div className="mt-3 flex gap-2">

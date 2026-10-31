@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getCourse } from "@/lib/academy";
-import { counsel, formServerMessage, savedBookingReply } from "@/lib/chat/respond";
+import { counsel, formServerMessage, formatBatchTime, savedBookingReply } from "@/lib/chat/respond";
 import { parseUtterance } from "@/lib/chat/parser";
 import { formatLongDate } from "@/lib/dates";
 
@@ -680,5 +680,85 @@ describe("blocker regressions", () => {
     const teacher = counsel({ text: "Who teaches IELTS?", language: "pa", now });
     expect(teacher.reply).toContain("ਹਰਲੀਨ ਕੌਰ");
     expect(teacher.reply).not.toContain("Harleen Kaur");
+  });
+
+  it("R11 ignores confirmation words after a name phrase and still reads a real name", () => {
+    const confirming = { active: true, confirming: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const, date: "2026-11-20" };
+    const midway = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const };
+    const junk = [
+      "the name is correct",
+      "the name is right",
+      "the name is perfect",
+      "the name is misspelled",
+      "the name is mine",
+      "the name is same",
+      "name: correct",
+      "मेरा नाम सही है",
+      "मेरा नाम ठीक है",
+      "मेरा नाम गलत है",
+      "ਮੇਰਾ ਨਾਂ ਸਹੀ ਹੈ",
+      "ਮੇਰਾ ਨਾਂ ਠੀਕ ਹੈ",
+      "ਮੇਰਾ ਨਾਮ ਗਲਤ ਹੈ",
+    ];
+    for (const text of junk) {
+      expect(counsel({ text, language: "en", draft: confirming, now }).draft.name, text).toBe("Simran");
+      expect(counsel({ text, language: "hi", draft: midway, now }).draft.name, text).toBe("Simran");
+      expect(counsel({ text, language: "pa", draft: midway, now }).draft.name, text).toBe("Simran");
+    }
+    for (const draft of [confirming, midway]) {
+      expect(counsel({ text: "the name is spelled Simran Kaur", language: "en", draft, now }).draft.name).toBe("Simran Kaur");
+      expect(counsel({ text: "my name is Simran Kaur only", language: "en", draft, now }).draft.name).toBe("Simran Kaur");
+      expect(counsel({ text: "मेरा नाम सिमरन ही है", language: "hi", draft, now }).draft.name).toBe("सिमरन");
+      expect(counsel({ text: "ਮੇਰਾ ਨਾਂ ਸਿਮਰਨ ਹੀ ਹੈ", language: "pa", draft, now }).draft.name).toBe("ਸਿਮਰਨ");
+    }
+  });
+
+  it("R11 answers side questions while booking, picks Tuesday after a busy Monday, and confirms ready", () => {
+    const pendingDate = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const };
+    const online = counsel({ text: "Is the trial online?", language: "en", draft: pendingDate, now });
+    expect(online.draft.name).toBe("Simran");
+    expect(online.draft.date).toBeUndefined();
+    expect(online.reply.toLowerCase()).toContain("not online");
+    expect(online.reply.toLowerCase()).toContain("date");
+    const length = counsel({ text: "How long is the trial class?", language: "hi", draft: pendingDate, now });
+    expect(length.draft.course).toBe("ielts-pte");
+    expect(length.reply).toContain("घंटे");
+    expect(length.reply).toContain("तारीख");
+
+    const tuesday = counsel({ text: "I'm busy Monday so Tuesday works", language: "en", draft: pendingDate, now });
+    expect(tuesday.draft.date).toBe("2026-11-03");
+    expect(tuesday.draft.name).toBe("Simran");
+
+    const ready = { ...pendingDate, date: "2026-11-20", confirming: true };
+    expect(counsel({ text: "I am ready", language: "en", draft: ready, now }).ready).toBe(true);
+    expect(counsel({ text: "मैं तैयार हूँ", language: "hi", draft: ready, now }).ready).toBe(true);
+    expect(counsel({ text: "ਮੈਂ ਤਿਆਰ ਹਾਂ", language: "pa", draft: ready, now }).ready).toBe(true);
+    expect(counsel({ text: "I am ready", language: "en", draft: ready, now }).draft.name).toBe("Simran");
+    expect(counsel({ text: "I am ready", language: "en", draft: ready, now }).reply.toLowerCase()).not.toContain("which part");
+
+    for (const text of ["cancel the trial", "cancel karo", "बुकिंग कैंसल करो", "रद्द कर दीजिए"]) {
+      expect(counsel({ text, language: "en", draft: ready, now }).draft.name, text).toBeUndefined();
+    }
+    expect(counsel({ text: "don't cancel the trial", language: "en", draft: ready, now }).draft.name).toBe("Simran");
+
+    const asked = counsel({
+      text: "What is the fee? My name is Aman",
+      language: "en",
+      draft: { active: true, course: "ielts-pte" },
+      now,
+    });
+    expect(asked.draft.name).toBe("Aman");
+    expect(asked.reply).toMatch(/₹|fee/i);
+    expect(asked.ready).toBe(false);
+
+    const saturday = counsel({ text: "Is the NEET trial on Saturday?", language: "en", now });
+    expect(saturday.intent).not.toBe("book");
+    expect(saturday.draft.date).toBeUndefined();
+    expect(saturday.draft.active).toBeUndefined();
+    expect(saturday.reply.toLowerCase()).toContain("neet");
+    expect(formatBatchTime("7:00–9:00 am", "hi")).not.toMatch(/\bam\b/i);
+    expect(formatBatchTime("5:00–7:00 pm", "pa")).not.toMatch(/\bpm\b/i);
+    expect(formatBatchTime("7:00–9:00 am", "hi")).toContain("सुबह");
+    expect(formatBatchTime("5:00–7:00 pm", "pa")).toContain("ਵਜੇ");
   });
 });
