@@ -77,6 +77,33 @@ describe("POST /api/bookings", () => {
     if (!bad.ok) expect(bad.fields).toContain("language");
   });
 
+  it("accepts one-word time names and rejects junk names", async () => {
+    const names = ["Sham", "Subah", "Savera", "Sandhya", "शाम", "ਸ਼ਾਮ"];
+    const languages = ["en", "hi", "pa"] as const;
+    let phone = 9876610000;
+    for (const name of names) {
+      for (const language of languages) {
+        phone += 1;
+        const saved = await submitBooking(payload(String(phone), { name, language, source: "form" }), {
+          ip: `10.4.${phone % 200}.${(phone >> 8) % 200}`,
+          now,
+          webhookUrl: null,
+        });
+        expect(saved.ok, `${language} ${name}`).toBe(true);
+        if (saved.ok) {
+          expect(saved.booking.name).toBe(name);
+          expect(saved.booking.language).toBe(language);
+          expect(saved.booking.source).toBe("form");
+        }
+      }
+    }
+    for (const name of ["hmm", "test", "booking"]) {
+      const rejected = await submitBooking(payload("9876610999", { name }), { ip: "10.4.0.2", now, webhookUrl: null });
+      expect(rejected.ok, name).toBe(false);
+      if (!rejected.ok) expect(rejected.fields, name).toContain("name");
+    }
+  });
+
   it("rejects a missing name, a bad phone, a bad course, and a bad email", async () => {
     const missing = await submitBooking(payload("9876543211", { name: "" }), { ip: "10.0.0.1", now, webhookUrl: null });
     expect(missing.ok).toBe(false);

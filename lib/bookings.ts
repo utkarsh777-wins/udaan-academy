@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHmac, randomBytes } from "node:crypto";
 import { academy, getCourse, type BatchId } from "@/lib/academy";
 import { addISODays, formatLongDate, isISODate, todayISO } from "@/lib/dates";
-import { isAcceptableBookingName } from "@/lib/chat/parser";
+import { isPersonName } from "@/lib/chat/parser";
 import { batchHasEnded, nextOpenDate, weekdayIndex } from "@/lib/schedule";
 
 export type Booking = {
@@ -275,8 +275,7 @@ function validate(
   const body = input as Record<string, unknown>;
   const fields: string[] = [];
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const nameConfirmed = body.nameConfirmed === true;
-  if (!isAcceptableBookingName(name, nameConfirmed)) fields.push("name");
+  if (!isPersonName(name)) fields.push("name");
   const phone = typeof body.phone === "string" ? normalizePhone(body.phone) : null;
   if (!phone) fields.push("phone");
   const courseSlug = typeof body.course === "string" ? body.course : "";

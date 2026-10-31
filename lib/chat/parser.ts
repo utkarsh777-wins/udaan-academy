@@ -121,6 +121,11 @@ const EVENING = ["evening", "shaam", "sham", "शाम", "ਸ਼ਾਮ"].map(fo
 const NIGHT = ["night", "रात", "रात्रि", "ਰਾਤ"].map(fold);
 const WEEKEND = ["weekend", "वीकेंड", "वीकएंड", "ਵੀਕਐਂਡ"].map(fold);
 
+const SHARED_NAME_JUNK = new Set(
+  ["hmm", "hmmm", "test", "booking", "student", "help", "name", "asdf", "guest", "india", "mera naam"].map(fold),
+);
+const API_NAME_JUNK = new Set(["hmm", "hmmm", "test", "booking"].map(fold));
+
 const GREETING_WORDS = new Set(
   [
     "hi",
@@ -400,6 +405,15 @@ function scanQuantities(tokens: string[]): {
   return { partySize, time };
 }
 
+const LED_NAME = "[\\p{L}\\p{M}][\\p{L}\\p{M}'’-]{0,40}(?:\\s+[\\p{L}\\p{M}][\\p{L}\\p{M}'’-]{0,40}){0,3}";
+
+function withoutNameLead(text: string): string {
+  return text
+    .replace(new RegExp(`\\b(?:my name is|the name is|name is|change (?:the )?name to|call me|mera naam)\\s+${LED_NAME}`, "giu"), " ")
+    .replace(new RegExp(`(?:मेरा नाम(?:\\s+है)?|ਮੇਰਾ ਨਾਂ|ਮੇਰਾ ਨਾਮ|नाम|ਨਾਂ)\\s+${LED_NAME}`, "gu"), " ")
+    .replace(new RegExp(`\\bfor\\s+${LED_NAME}(?=\\s*(?:,|\\b(?:phone|ph)\\b|\\d|$))`, "giu"), " ");
+}
+
 function textWithoutName(text: string, name: string | null): string {
   if (!name) return text;
   const source = text.normalize("NFC");
@@ -464,9 +478,8 @@ export function isLoneTimeName(name: string): boolean {
   return words.length === 1 && PERSONAL_TIME_NAMES.has(fold(words[0] ?? ""));
 }
 
-export function isAcceptableBookingName(name: string, confirmed = false): boolean {
-  if (isPersonName(name)) return true;
-  return confirmed && isLoneTimeName(name);
+export function isAcceptableBookingName(name: string): boolean {
+  return isPersonName(name);
 }
 
 export function normalisePersonName(value: string): string | null {
@@ -565,7 +578,8 @@ const NAME_META = new Set(
 const NAME_PATTERNS: Array<{ pattern: RegExp; allowMixed: boolean }> = [
   { pattern: /my name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: true },
   { pattern: /change (?:the )?name to\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
-  { pattern: /the name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
+  { pattern: /call me\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
+  { pattern: /(?:^|\b)(?:the )?name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
   { pattern: /^(?:spelled|spelt)\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})$/iu, allowMixed: false },
   { pattern: /mera naam\s+(.+?)\s+hai\b/iu, allowMixed: false },
   { pattern: /मेरा नाम(?:\s+है)?\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u, allowMixed: false },
@@ -683,7 +697,10 @@ function cleanName(value: string): string | null {
 }
 
 const TRAILING_TIME =
-  /^(.*?)(?:[,，]\s*|\s+)(morning|evening|afternoon|subah|savera|sandhya|dopahar|shaam|sham|सुबह|सवेरे|सवेरा|दोपहर|शाम|ਸਵੇਰੇ?|ਦੁਪਹਿਰ|ਸ਼ਾਮ)(?:\s+(?:ka|ke|ki|का|के|की|ਦਾ|ਦੇ|ਦੀ))?(?:\s+(?:batch|बैच|ਬੈਚ))?$/iu;
+  /^(.*?)(?:[,，]\s*|\s+)(morning|evening|afternoon|weekend|subah|savera|sandhya|dopahar|shaam|sham|सुबह|सवेरे|सवेरा|दोपहर|शाम|वीकेंड|वीकएंड|ਸਵੇਰੇ?|ਦੁਪਹਿਰ|ਸ਼ਾਮ|ਵੀਕਐਂਡ)(?:\s+(?:ka|ke|ki|का|के|की|ਦਾ|ਦੇ|ਦੀ))?(?:\s+(?:batch|बैच|ਬੈਚ))?$/iu;
+
+const EXPLICIT_NAME_LEAD =
+  /^(?:my name is|the name is|name is|change (?:the )?name to|call me|mera naam|for|मेरा नाम|ਮੇਰਾ ਨਾਂ|ਮੇਰਾ ਨਾਮ|नाम|ਨਾਂ)\b/iu;
 
 export type NameReply = {
   name: string | null;
@@ -736,7 +753,7 @@ export function readNameReply(text: string, now = new Date()): NameReply {
   if (!cleaned || NAME_JUNK.has(fold(cleaned))) {
     return { name: null, phone, batch, course, date, timeName: false };
   }
-  if (isLoneTimeName(cleaned)) return { name: cleaned, phone, batch, course, date, timeName: true };
+  if (isLoneTimeName(cleaned)) return { name: cleaned, phone, batch, course, date, timeName: !EXPLICIT_NAME_LEAD.test(trimmed) };
   return { name: cleaned, phone, batch, course, date, timeName: false };
 }
 
@@ -1117,15 +1134,21 @@ export function isPersonName(value: string): boolean {
       "ਪਿਤਾ",
     ].map(fold),
   );
+  if (SHARED_NAME_JUNK.has(fold(name))) return false;
+  if (words.some((word) => API_NAME_JUNK.has(fold(word)))) return false;
   if (/^(?:one|ek)\s+(?:minutes?|secs?|seconds?)$/i.test(fold(name))) return false;
   if (mentionsBatchWord(name)) return false;
   if (words.some((word) => blocked.has(fold(word)) || RESERVED_NAMES.has(fold(word)))) return false;
   const honorifics = new Set(["ji", "जी", "ਜੀ"].map(fold));
   const particles = new Set(["ka", "ke", "ki", "ko", "nu", "da", "de", "di", "wala", "का", "के", "की", "को", "वाला", "ਦਾ", "ਦੇ", "ਦੀ", "ਨੂੰ", "ਵਾਲਾ"].map(fold));
-  const timeOfDay = new Set([...MORNING, ...AFTERNOON, ...EVENING, ...NIGHT, ...WEEKEND, ...PERSONAL_TIME_NAMES]);
-  const given = words.filter(
-    (word) => !titles.has(fold(word)) && !honorifics.has(fold(word)) && !timeOfDay.has(fold(word)) && !particles.has(fold(word)),
-  );
+  const scheduleWords = new Set([...MORNING, ...AFTERNOON, ...EVENING, ...NIGHT, ...WEEKEND]);
+  const given = words.filter((word) => {
+    const token = fold(word);
+    if (titles.has(token) || honorifics.has(token) || particles.has(token)) return false;
+    if (PERSONAL_TIME_NAMES.has(token)) return true;
+    if (scheduleWords.has(token)) return false;
+    return true;
+  });
   return given.length > 0;
 }
 
@@ -1451,7 +1474,7 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
   const phone = extractPhone(prepared);
   const named = extractName(prepared);
   let resolvedName = named.name;
-  const period = resolvePeriod(textWithoutName(prepared, resolvedName));
+  const period = resolvePeriod(withoutNameLead(textWithoutName(prepared, resolvedName)));
   let batch = batchFrom(period, resolvedName ? null : time);
   if (resolvedName) {
     const split = peelTrailingBatch(resolvedName);

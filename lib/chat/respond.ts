@@ -19,6 +19,7 @@ import {
   isBareWrong,
   mentionsBatchWord,
   readNameReply,
+  normalisePersonName,
   isLoneWeakConfirm,
   fold,
   includesTerm,
@@ -245,6 +246,11 @@ export function counsel(options: {
     };
   }
 
+  const renamedAfterNo = nameAfterDecline(options.text);
+  if (renamedAfterNo && incoming.name && fold(renamedAfterNo) !== fold(incoming.name)) {
+    return askRename(incoming, renamedAfterNo, language);
+  }
+
   if (incoming.confirming && (isAffirmative(options.text) || isReadyToSend(options.text))) {
     if (renameTurn) return resumeDraft({ ...incoming, pendingName: undefined }, language);
     return {
@@ -261,6 +267,15 @@ export function counsel(options: {
     if (taken.phone) named.phone = taken.phone;
     if (taken.course) named.course = taken.course;
     if (taken.date) named.date = taken.date;
+    if (taken.batch === "weekend" && named.course && !isBatchOnCourse(named.course, "weekend")) {
+      if (taken.name && !taken.timeName) named.name = taken.name;
+      return {
+        reply: weekendMissing(language),
+        draft: named,
+        ready: false,
+        intent: "book",
+      };
+    }
     if (taken.batch && (named.course ? isBatchOnCourse(named.course, taken.batch) : true)) named.batch = taken.batch;
     if (taken.timeName && taken.name) {
       return {
@@ -284,11 +299,10 @@ export function counsel(options: {
   }
 
   const base = incoming.confirming ? { ...incoming, confirming: false } : incoming;
-  const labelledBatch = Boolean(mentionsBatchWord(options.text) && parsed.batch);
   const fillsBooking = Boolean(
     !isSubstantiveQuestion(options.text) &&
       parsed.name &&
-      (labelledBatch ||
+      (Boolean(parsed.batch) ||
         [Boolean(parsed.phone), parsed.courses.length === 1, Boolean(parsed.batch), Boolean(parsed.date)].filter(Boolean).length >= 2),
   );
   const booking = parsed.intent === "book" || hasStarted(base) || incoming.confirming || fillsBooking;
@@ -554,6 +568,19 @@ function startsWithNo(text: string): boolean {
     ["no", "nope", "nah", "naah", "nko", "dont", "na", "naa", "nai", "nhi", "nahi", "nahin", "नहीं", "ना", "नही", "ਨਹੀਂ", "ਨਾ"].map(squeezeToken),
   );
   return nos.has(token) || nos.has(first);
+}
+
+function nameAfterDecline(text: string): string | null {
+  if (!startsWithNo(text)) return null;
+  const rest = text.split(/[,，]/u).slice(1).join(" ").trim();
+  if (!rest || specifiesFieldChange(parseUtterance(rest))) return null;
+  return normalisePersonName(rest);
+}
+
+function weekendMissing(language: Language): string {
+  if (language === "hi") return "इस कोर्स में वीकेंड बैच नहीं है। कौन सा बैच ठीक रहेगा — सुबह या शाम?";
+  if (language === "pa") return "ਇਸ ਕੋਰਸ ਵਿੱਚ ਵੀਕਐਂਡ ਬੈਚ ਨਹੀਂ ਹੈ। ਕਿਹੜਾ ਬੈਚ ਠੀਕ ਰਹੇਗਾ — ਸਵੇਰ ਜਾਂ ਸ਼ਾਮ?";
+  return "This course has no weekend batch. Which batch — morning or evening?";
 }
 
 function timeNameQuestion(language: Language, name: string): string {
@@ -1134,9 +1161,10 @@ function summaryReply(draft: Draft, language: Language): string {
 }
 
 function mayApplyBatch(text: string, draft: Draft, confirming: boolean): boolean {
+  void text;
+  void confirming;
   if (hasStarted(draft) && !draft.name) return false;
-  if (hasStarted(draft) || confirming) return true;
-  return mentionsBatchWord(text) || isBookingCommand(text);
+  return true;
 }
 
 function mergeDraft(draft: Draft, parsed: ParseResult, text: string, applyBatch: boolean): Draft {
