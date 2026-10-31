@@ -16,6 +16,8 @@ import {
   explicitConfirmation,
   explicitName,
   explicitNameRejection,
+  isBareWrong,
+  isLoneWeakConfirm,
   fold,
   includesTerm,
   isBookingCommand,
@@ -65,6 +67,7 @@ export function counsel(options: {
   const now = options.now ?? new Date();
   let incoming = options.draft ?? {};
   const parsed = parseUtterance(options.text, now);
+  const renameTurn = Boolean(incoming.pendingName);
 
   if (isCancel(options.text) && hasStarted(incoming)) {
     return {
@@ -76,13 +79,30 @@ export function counsel(options: {
   }
 
   if (incoming.pendingName) {
-    if (isRenameYes(options.text)) {
-      return resumeDraft({ ...incoming, name: incoming.pendingName, pendingName: undefined }, language);
+    const pendingName = incoming.pendingName;
+    if (isRenameYes(options.text, pendingName)) {
+      return resumeDraft({ ...incoming, name: pendingName, pendingName: undefined }, language);
     }
     if (isRenameNo(options.text)) {
       return resumeDraft({ ...incoming, pendingName: undefined }, language);
     }
+    if (!isRenameBypass(options.text, parsed, pendingName)) {
+      return askRename(incoming, pendingName, language);
+    }
     incoming = { ...incoming, pendingName: undefined };
+  }
+
+  if (incoming.confirming && isBareWrong(options.text)) {
+    return {
+      reply: whichPartWrong(language),
+      draft: { ...incoming, pendingName: undefined },
+      ready: false,
+      intent: "book",
+    };
+  }
+
+  if (incoming.confirming && isLoneWeakConfirm(options.text)) {
+    return resumeDraft({ ...incoming, pendingName: undefined }, language);
   }
 
   if (hasStarted(incoming) && explicitNameRejection(options.text)) {
@@ -95,6 +115,7 @@ export function counsel(options: {
   }
 
   if (hasStarted(incoming) && explicitConfirmation(options.text)) {
+    if (renameTurn) return resumeDraft({ ...incoming, pendingName: undefined }, language);
     if (incoming.confirming) {
       return {
         reply: speak(language, holding(language)),
@@ -133,10 +154,12 @@ export function counsel(options: {
             ? trialFreeReply(language, options.text)
             : eligibilityAnswer(parsed, language)
           : statusAnswer(language);
-    const pending = hasStarted(incoming) ? firstMissing(incoming) : null;
+    const paired = nameWithQuestion(options.text);
+    const draft = paired ? { ...incoming, name: paired, active: true } : incoming;
+    const pending = paired ? firstMissing(draft) : hasStarted(incoming) ? firstMissing(incoming) : null;
     return {
       reply: pending ? `${body} ${askFor(pending, language)}` : body,
-      draft: incoming,
+      draft,
       ready: false,
       intent: parsed.intent,
     };
@@ -161,6 +184,7 @@ export function counsel(options: {
   }
 
   if (incoming.confirming && (isAffirmative(options.text) || isReadyToSend(options.text))) {
+    if (renameTurn) return resumeDraft({ ...incoming, pendingName: undefined }, language);
     return {
       reply: speak(language, holding(language)),
       draft: { ...incoming, confirming: false, active: true },
@@ -222,7 +246,8 @@ export function counsel(options: {
   }
 
   const askedForDate = firstMissing(base) === "date";
-  const dateMiss = askedForDate && !parsed.date && options.text.trim() ? academy.counsellor.dateMiss[language] : null;
+  const movedField = Boolean(parsed.phone || parsed.batch || parsed.courses.length === 1);
+  const dateMiss = askedForDate && !parsed.date && !movedField && options.text.trim() ? academy.counsellor.dateMiss[language] : null;
 
   const preface =
     parsed.intent === "fees"
@@ -382,22 +407,117 @@ function isCancel(text: string): boolean {
     .replace(/\s+/g, " ")
     .trim();
   if (matchesCancel(stripped)) return true;
+  if (confirmPlusCancel(folded)) return true;
   const clauses = text
     .normalize("NFC")
-    .split(/[.?!।,，]+/u)
+    .split(/[.?!।,，\n\r]+|\band\b/iu)
     .map((part) => part.trim())
     .filter(Boolean);
   return clauses.length > 1 && clauses.some((clause) => clause !== text.trim() && isCancel(clause));
 }
 
-function isRenameYes(text: string): boolean {
-  return isAffirmative(text) && !isHedged(text) && !isReadyToSend(text);
+const RENAME_YES = new Set(
+  [
+    "correct",
+    "right",
+    "fine",
+    "same",
+    "ok",
+    "okay",
+    "sure",
+    "yes",
+    "yeah",
+    "yep",
+    "haan",
+    "han",
+    "ha",
+    "ji haan",
+    "ji han",
+    "haan ji",
+    "sahi",
+    "sahi hai",
+    "theek",
+    "theek hai",
+    "thik hai",
+    "सही",
+    "सही है",
+    "हाँ",
+    "हां",
+    "हाँ जी",
+    "हां जी",
+    "जी हाँ",
+    "जी हां",
+    "ठीक",
+    "ठीक है",
+    "ਸਹੀ",
+    "ਸਹੀ ਹੈ",
+    "ਹਾਂ",
+    "ਹਾਂ ਜੀ",
+    "ਠੀਕ",
+    "ਠੀਕ ਹੈ",
+    "the name is correct",
+    "my name is correct",
+    "all correct",
+    "exactly right",
+    "looks good",
+    "all good",
+    "that is correct",
+    "send",
+    "sab sahi",
+    "सब सही",
+    "सब सही है",
+  ].map((phrase) => phrase.normalize("NFC").toLowerCase()),
+);
+
+function plainWords(text: string): string {
+  return text.normalize("NFC").replace(/[।!?.,]+/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function isRenameYes(text: string, pendingName: string): boolean {
+  if (isHedged(text) || isCancel(text)) return false;
+  const trimmed = plainWords(text);
+  if (RENAME_YES.has(trimmed)) return true;
+  if (fold(trimmed) === fold(pendingName)) return true;
+  const stated = explicitName(text);
+  return Boolean(stated && fold(stated) === fold(pendingName) && !specifiesFieldChange(parseUtterance(text)));
 }
 
 function isRenameNo(text: string): boolean {
-  if (isReadyToSend(text)) return true;
-  const trimmed = text.normalize("NFC").replace(/[।!?.,]+/g, "").replace(/\s+/g, " ").trim().toLowerCase();
-  return ["no", "nope", "nah", "nahi", "nahin", "नहीं", "नही", "ਨਹੀਂ", "ਨਾ"].includes(trimmed);
+  const trimmed = plainWords(text);
+  return ["no", "nope", "nah", "nahi", "nahin", "keep it", "the old one", "नहीं", "नही", "ਨਹੀਂ", "ਨਾ"].includes(trimmed);
+}
+
+function isRenameBypass(text: string, parsed: ParseResult, pendingName: string): boolean {
+  if (parsed.phone || parsed.batch || parsed.date || parsed.courses.length === 1) return true;
+  if (!isSubstantiveQuestion(text) && !isOnlineQuestion(text)) return false;
+  const stripped = text.normalize("NFC").replace(/[?？!।.]+/g, "").trim();
+  return !isRenameYes(stripped, pendingName);
+}
+
+function whichPartWrong(language: Language): string {
+  if (language === "hi") return "कौन सी बात गलत है?";
+  if (language === "pa") return "ਕਿਹੜੀ ਗੱਲ ਗਲਤ ਹੈ?";
+  return "Which part is wrong?";
+}
+
+function nameWithQuestion(text: string): string | null {
+  const parts = text.split(/[.?!।]+/u).map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+  const name = explicitName(text);
+  if (!name) return null;
+  const question = parts.some((part) => isQuestionForm(part) || isOnlineQuestion(part) || isTrialInfoQuestion(part));
+  return question ? name : null;
+}
+
+function confirmPlusCancel(folded: string): boolean {
+  const words = folded.split(/\s+/).filter(Boolean);
+  if (!words.some((word) => CANCEL_TOKENS.has(word))) return false;
+  const soft = new Set(
+    ["yes", "yeah", "ok", "okay", "correct", "right", "fine", "same", "all", "sahi", "theek", "sure", "and", "the", "is", "name", "my", "please", "ji", "सही", "हाँ", "ਹਾਂ", "ਠੀਕ", "ठीक"].map((word) =>
+      word.normalize("NFC").toLowerCase(),
+    ),
+  );
+  return words.every((word) => CANCEL_TOKENS.has(word) || soft.has(word));
 }
 
 function correctNameAsk(language: Language): string {

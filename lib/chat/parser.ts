@@ -114,7 +114,7 @@ const CLOCK_MARKERS = new Set(
 
 const MORNING = ["morning", "सुबह", "सवेरे", "सवेरा", "तड़के", "ਸਵੇਰ", "ਸਵੇਰੇ"].map(fold);
 const AFTERNOON = ["afternoon", "दोपहर", "ਦੁਪਹਿਰ"].map(fold);
-const EVENING = ["evening", "शाम", "ਸ਼ਾਮ"].map(fold);
+const EVENING = ["evening", "shaam", "sham", "शाम", "ਸ਼ਾਮ"].map(fold);
 const NIGHT = ["night", "रात", "रात्रि", "ਰਾਤ"].map(fold);
 const WEEKEND = ["weekend", "वीकेंड", "वीकएंड", "ਵੀਕਐਂਡ"].map(fold);
 
@@ -537,7 +537,11 @@ function nameBesidePhone(source: string): string | null {
   return cleanName(segment);
 }
 
-const NAME_FILLERS = new Set(["now", "already", "actually", "just", "please", "ji", "जी", "ਜੀ", "plz"].map(fold));
+const NAME_FILLERS = new Set(["now", "already", "actually", "just", "please", "ji", "जी", "ਜੀ", "plz", "अब", "ਹੁਣ"].map(fold));
+
+const NAME_JUNK = new Set(
+  ["thanks", "thank", "thanku", "given", "here", "before", "plus", "hold", "on", "batch", "evening", "morning", "weekend", "as", "shaam", "sham"].map(fold),
+);
 
 function stripNameFillers(value: string): string {
   return value
@@ -562,6 +566,7 @@ function cleanName(value: string, allowMixed = false): string | null {
   const name = tidyName(value);
   if (!name) return null;
   const words = name.split(/\s+/).filter(Boolean);
+  if (words.some((word) => NAME_JUNK.has(fold(word)))) return null;
   const metas = words.filter((word) => NAME_META.has(fold(word)));
   if (metas.length === words.length) return null;
   if (metas.length > 0) {
@@ -640,10 +645,22 @@ export function explicitMetaOnly(text: string): boolean {
   return explicitConfirmation(text);
 }
 
+const LONE_NOT_YES = new Set(["spelling", "only", "there", "all", "mine"].map(fold));
+
+const EXTRA_YES = new Set(
+  ["looks good", "all good", "that is correct", "that is right", "सब सही है", "सब सही", "sab sahi", "sab sahi hai"].map((phrase) => fold(phrase)),
+);
+
+export function isLoneWeakConfirm(text: string): boolean {
+  const words = confirmWords(flattenMessage(text));
+  return words.length === 1 && LONE_NOT_YES.has(fold(words[0] ?? ""));
+}
+
 export function explicitConfirmation(text: string): boolean {
-  if (/[?？]/.test(text) || isNameChangeCommand(text)) return false;
+  if (/[?？]/.test(text) || isNameChangeCommand(text) || isLoneWeakConfirm(text)) return false;
   const flat = flattenMessage(text);
   if (!flat) return false;
+  if (EXTRA_YES.has(fold(flat))) return true;
   const bare = confirmWords(flat);
   if (bare.length > 0 && bare.every((word) => NAME_CONFIRM.has(fold(word)))) return true;
   if (!NAME_LEAD.test(flat)) return false;
@@ -652,14 +669,28 @@ export function explicitConfirmation(text: string): boolean {
   return rest.every((word) => NAME_CONFIRM.has(fold(word)));
 }
 
+const BARE_WRONG = new Set(["wrong", "galat", "गलत", "ਗਲਤ"].map(fold));
+
+const NAME_WRONG_LEAD =
+  /^(?:the name is|my name is|mera naam|मेरा नाम(?:\s+है)?|नाम|ਮੇਰਾ ਨਾਂ|ਮੇਰਾ ਨਾਮ|ਨਾਂ|ਨਾਮ)\s+/iu;
+
+export function isBareWrong(text: string): boolean {
+  const words = confirmWords(flattenMessage(text));
+  return words.length === 1 && BARE_WRONG.has(fold(words[0] ?? ""));
+}
+
 export function explicitNameRejection(text: string): boolean {
-  if (isNameChangeCommand(text)) return false;
+  if (isNameChangeCommand(text) || isBareWrong(text)) return false;
   const flat = flattenMessage(text);
-  const source = NAME_LEAD.test(flat) ? flat.replace(NAME_LEAD, "") : flat;
+  const source = NAME_WRONG_LEAD.test(flat) ? flat.replace(NAME_WRONG_LEAD, "") : NAME_LEAD.test(flat) ? flat.replace(NAME_LEAD, "") : flat;
   const words = confirmWords(source);
   if (words.length === 0) return false;
   const joined = words.map((word) => fold(word)).join(" ");
   if (joined === "not right" || joined === "not correct") return true;
+  if (!NAME_WRONG_LEAD.test(flat) && !NAME_LEAD.test(flat) && words.length === 1 && !NAME_WRONG.has(fold(words[0] ?? ""))) return false;
+  if (!NAME_WRONG_LEAD.test(flat) && !NAME_LEAD.test(flat)) {
+    return words.every((word) => NAME_WRONG.has(fold(word)));
+  }
   return words.every((word) => NAME_WRONG.has(fold(word)));
 }
 
@@ -863,6 +894,10 @@ export function isPersonName(value: string): boolean {
     "ready",
     "fine",
     "good",
+    "given",
+    "hold",
+    "before",
+    "plus",
     "here",
     "busy",
     "free",

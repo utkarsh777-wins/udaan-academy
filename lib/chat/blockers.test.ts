@@ -914,7 +914,8 @@ describe("blocker regressions", () => {
     const ready = counsel({ text: "I am ready", language: "en", draft: { ...confirming, pendingName: "Aman" }, now });
     expect(ready.ready).toBe(false);
     expect(ready.draft.name).toBe("Simran");
-    expect(ready.draft.pendingName).toBeUndefined();
+    expect(ready.draft.pendingName).toBe("Aman");
+    expect(ready.reply).toContain("Change the name to 'Aman'?");
   });
 
   it("R12 leaves an open draft alone for trial questions and answers what the class covers", () => {
@@ -1092,7 +1093,6 @@ describe("blocker regressions", () => {
       "the name is misspelled",
       "the name is not right",
       "incorrect",
-      "galat",
       "मेरा नाम गलत है",
       "ਮੇਰਾ ਨਾਮ ਗਲਤ ਹੈ",
     ];
@@ -1145,5 +1145,127 @@ describe("blocker regressions", () => {
     expect(counsel({ text: "don't cancel the trial", language: "en", draft: confirming, now }).draft.name).toBe("Simran");
     expect(counsel({ text: "can I cancel later?", language: "en", draft: confirming, now }).draft.name).toBe("Simran");
     expect(counsel({ text: "no need to cancel", language: "en", draft: confirming, now }).draft.name).toBe("Simran");
+  });
+
+  it("R14 does not book the old name when the rename question is answered with a confirm word", () => {
+    const confirming = {
+      active: true,
+      confirming: true,
+      name: "Simran",
+      phone: "9876543210",
+      course: "ielts-pte",
+      batch: "morning" as const,
+      date: "2026-11-20",
+    };
+    const midway = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const };
+    const yesWords = ["correct", "right", "fine", "same", "the name is correct", "सही", "ਸਹੀ", "all correct", "looks good", "send"];
+    for (const language of ["en", "hi", "pa"] as const) {
+      const summary = language === "hi" ? "भेज दूँ" : language === "pa" ? "ਭੇਜ ਦਿਆਂ" : "Shall I send";
+      for (const start of [confirming, midway]) {
+        const atConfirm = "confirming" in start && start.confirming;
+        const asked = counsel({ text: "my name is Aman Gill", language, draft: start, now });
+        expect(asked.draft.pendingName, language).toBe("Aman Gill");
+        expect(asked.ready, language).toBe(false);
+        for (const text of yesWords) {
+          const answered = counsel({ text, language, draft: asked.draft, now });
+          expect(answered.ready, `${language} ${text}`).toBe(false);
+          expect(answered.draft.name, `${language} ${text}`).toBe("Aman Gill");
+          expect(answered.draft.pendingName, `${language} ${text}`).toBeUndefined();
+          expect(answered.reply, `${language} ${text}`).not.toMatch(/sending|भेज रही|ਭੇਜ ਰਹੀ/);
+          if (atConfirm) expect(answered.reply, `${language} ${text}`).toContain(summary);
+          else expect(answered.reply.toLowerCase(), `${language} ${text}`).toMatch(/date|तारीख|ਤਾਰੀਖ/);
+        }
+        for (const text of ["keep it", "the old one", "no", "nahi", "नहीं", "ਨਹੀਂ"]) {
+          const kept = counsel({ text, language, draft: asked.draft, now });
+          expect(kept.ready, `${language} ${text}`).toBe(false);
+          expect(kept.draft.name, `${language} ${text}`).toBe("Simran");
+          expect(kept.draft.pendingName, `${language} ${text}`).toBeUndefined();
+          if (atConfirm) expect(kept.reply, `${language} ${text}`).toContain(summary);
+        }
+        const again = counsel({ text: "hello", language, draft: asked.draft, now });
+        expect(again.ready, language).toBe(false);
+        expect(again.draft.name, language).toBe("Simran");
+        expect(again.draft.pendingName, language).toBe("Aman Gill");
+        expect(again.reply, language).toContain("Aman Gill");
+        const retyped = counsel({ text: "Aman Gill", language, draft: asked.draft, now });
+        expect(retyped.ready, language).toBe(false);
+        expect(retyped.draft.name, language).toBe("Aman Gill");
+        expect(retyped.draft.pendingName, language).toBeUndefined();
+      }
+    }
+  });
+
+  it("R14 keeps weak words from sending, and handles the other confirm polish", () => {
+    const confirming = {
+      active: true,
+      confirming: true,
+      name: "Simran",
+      phone: "9876543210",
+      course: "ielts-pte",
+      batch: "morning" as const,
+      date: "2026-11-20",
+    };
+    const midway = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const };
+    for (const text of ["spelling", "only", "there", "all", "mine"]) {
+      const result = counsel({ text, language: "en", draft: confirming, now });
+      expect(result.ready, text).toBe(false);
+      expect(result.draft.name, text).toBe("Simran");
+      expect(result.draft.confirming, text).toBe(true);
+      expect(result.reply, text).toContain("Shall I send");
+    }
+    for (const text of ["looks good", "all good", "that is correct", "सब सही है"]) {
+      expect(counsel({ text, language: "en", draft: confirming, now }).ready, text).toBe(true);
+    }
+    for (const [text, language, ask] of [
+      ["wrong", "en", "Which part is wrong?"],
+      ["galat", "en", "Which part is wrong?"],
+      ["wrong", "hi", "कौन सी बात गलत है?"],
+      ["galat", "pa", "ਕਿਹੜੀ ਗੱਲ ਗਲਤ ਹੈ?"],
+    ] as const) {
+      const result = counsel({ text, language, draft: confirming, now });
+      expect(result.ready, text).toBe(false);
+      expect(result.draft.name, text).toBe("Simran");
+      expect(result.reply, text).toContain(ask);
+    }
+    for (const [text, language, ask] of [
+      ["नाम गलत है", "hi", "सही नाम क्या है?"],
+      ["ਨਾਂ ਗਲਤ ਹੈ", "pa", "ਸਹੀ ਨਾਂ ਕੀ ਹੈ?"],
+    ] as const) {
+      const result = counsel({ text, language, draft: confirming, now });
+      expect(result.ready, text).toBe(false);
+      expect(result.draft.name, text).toBeUndefined();
+      expect(result.reply, text).toContain(ask);
+      expect(result.reply, text).not.toMatch(/Shall I send|भेज दूँ|ਭੇਜ ਦਿਆਂ/);
+    }
+    expect(counsel({ text: "my name is अब Aman Gill", language: "en", draft: { active: true }, now }).draft.name).toBe("Aman Gill");
+    expect(counsel({ text: "my name is ਹੁਣ Aman Gill", language: "en", draft: { active: true }, now }).draft.name).toBe("Aman Gill");
+    for (const text of ["my name is fine thanks", "my name is given", "my name is right here", "my name is same as before", "my name is correct plus evening batch", "hold on"]) {
+      expect(counsel({ text, language: "en", draft: { active: true }, now }).draft.name, text).toBeUndefined();
+    }
+    const moved = counsel({ text: "evening", language: "en", draft: midway, now });
+    expect(moved.draft.batch).toBe("evening");
+    expect(moved.reply).toContain("Which date works?");
+    expect(moved.reply).not.toMatch(/couldn.t read that date/);
+    const phoned = counsel({ text: "change phone to 9876501234", language: "en", draft: midway, now });
+    expect(phoned.draft.phone).toBe("9876501234");
+    expect(phoned.reply).toContain("Which date works?");
+    expect(phoned.reply).not.toMatch(/couldn.t read that date/);
+    for (const text of ["all correct and cancel", "yes cancel", "correct\ncancel"]) {
+      const ended = counsel({ text, language: "en", draft: confirming, now });
+      expect(ended.draft.name, text).toBeUndefined();
+      expect(ended.ready, text).toBe(false);
+    }
+    const free = counsel({ text: "name: Navjot Kaur. Is the trial free?", language: "en", now });
+    expect(free.draft.name).toBe("Navjot Kaur");
+    expect(free.reply.toLowerCase()).toContain("free");
+    expect(free.ready).toBe(false);
+    const shaam = counsel({ text: "sahi hai, shaam ka batch", language: "en", draft: confirming, now });
+    expect(shaam.ready).toBe(false);
+    expect(shaam.draft.batch).toBe("evening");
+    expect(shaam.draft.name).toBe("Simran");
+    expect(shaam.draft.confirming).toBe(true);
+    expect(shaam.reply).toContain("Shall I send");
+    expect(counsel({ text: "don't cancel", language: "en", draft: confirming, now }).draft.name).toBe("Simran");
+    expect(counsel({ text: "can I cancel later?", language: "en", draft: confirming, now }).draft.name).toBe("Simran");
   });
 });
