@@ -1,0 +1,871 @@
+import {
+  academy,
+  batchLabel,
+  formatInr,
+  getCourse,
+  type BatchId,
+  type Course,
+  type Language,
+} from "@/lib/academy";
+import { addISODays, formatLongDate, todayISO } from "@/lib/dates";
+import { batchHasEnded, nextOpenDate, weekdayIndex } from "@/lib/schedule";
+import {
+  includesTerm,
+  isPersonName,
+  parseUtterance,
+  type Intent,
+  type ParseResult,
+} from "@/lib/chat/parser";
+
+export type Draft = {
+  active?: boolean;
+  confirming?: boolean;
+  name?: string;
+  phone?: string;
+  email?: string;
+  course?: string;
+  batch?: BatchId;
+  date?: string;
+};
+
+export type CounselResult = {
+  reply: string;
+  draft: Draft;
+  ready: boolean;
+  intent: Intent;
+};
+
+export function openingGreeting(language: Language): string {
+  return speak(language, academy.counsellor.greeting[language]);
+}
+
+export function counsel(options: {
+  text: string;
+  language: Language;
+  draft?: Draft;
+  now?: Date;
+}): CounselResult {
+  const language = options.language;
+  const now = options.now ?? new Date();
+  const incoming = options.draft ?? {};
+  const parsed = parseUtterance(options.text, now);
+
+  if (
+    (parsed.intent === "admission" || parsed.intent === "eligibility" || parsed.intent === "status") &&
+    !incoming.confirming
+  ) {
+    const body =
+      parsed.intent === "admission"
+        ? admissionAnswer(parsed, language)
+        : parsed.intent === "eligibility"
+          ? eligibilityAnswer(parsed, language)
+          : statusAnswer(language);
+    const pending = hasStarted(incoming) ? firstMissing(incoming) : null;
+    return {
+      reply: pending ? `${body} ${askFor(pending, language)}` : body,
+      draft: incoming,
+      ready: false,
+      intent: parsed.intent,
+    };
+  }
+
+  if (incoming.confirming && mentionsChange(options.text)) {
+    return {
+      reply: academy.counsellor.changeField[language],
+      draft: { ...incoming, active: true, confirming: false },
+      ready: false,
+      intent: "book",
+    };
+  }
+
+  if (incoming.confirming && isAffirmative(options.text)) {
+    return {
+      reply: speak(language, holding(language)),
+      draft: { ...incoming, confirming: false, active: true },
+      ready: true,
+      intent: "book",
+    };
+  }
+
+  const base = incoming.confirming ? { ...incoming, confirming: false } : incoming;
+  const booking = parsed.intent === "book" || hasStarted(base) || incoming.confirming;
+  if (!booking) {
+    return {
+      reply: answer(parsed, options.text, language),
+      draft: incoming,
+      ready: false,
+      intent: parsed.intent,
+    };
+  }
+
+  const merged = { ...mergeDraft(base, parsed, options.text), active: true, confirming: false };
+  const namedField = namedSlot(options.text);
+  if (namedField && sameSlots(base, merged) && (base[namedField] || incoming.confirming)) {
+    const cleared: Draft = { ...merged, confirming: false, active: true };
+    if (namedField === "name") cleared.name = undefined;
+    if (namedField === "phone") cleared.phone = undefined;
+    if (namedField === "course") cleared.course = undefined;
+    if (namedField === "batch") cleared.batch = undefined;
+    if (namedField === "date") cleared.date = undefined;
+    return {
+      reply: askFor(namedField, language),
+      draft: cleared,
+      ready: false,
+      intent: "book",
+    };
+  }
+  if (incoming.confirming && sameSlots(base, merged)) {
+    return {
+      reply: academy.counsellor.changeField[language],
+      draft: { ...base, active: true, confirming: false },
+      ready: false,
+      intent: "book",
+    };
+  }
+
+  const draft = applyWeekday(merged, language, now);
+  const missingField = firstMissing(draft.draft);
+  if (!missingField) {
+    return {
+      reply: summaryReply(draft.draft, language),
+      draft: { ...draft.draft, confirming: true, active: true },
+      ready: false,
+      intent: "book",
+    };
+  }
+
+  const askedForDate = firstMissing(base) === "date";
+  const dateMiss = askedForDate && !parsed.date && options.text.trim() ? academy.counsellor.dateMiss[language] : null;
+
+  const preface =
+    parsed.intent === "fees"
+      ? [answer(parsed, options.text, language)]
+      : parsed.intent === "phone"
+        ? [answer(parsed, options.text, language)]
+        : [];
+
+  const repeatAsk = draft.hint || dateMiss ? null : askFor(missingField, language);
+  return {
+    reply: [draft.hint, dateMiss, ...preface, repeatAsk].filter(Boolean).join(" "),
+    draft: draft.draft,
+    ready: false,
+    intent: "book",
+  };
+}
+
+function answer(parsed: ParseResult, text: string, language: Language): string {
+  if (parsed.intent === "greeting") return openingGreeting(language);
+  if (parsed.intent === "off_topic") return offTopic(language);
+  if (parsed.intent === "phone") return phoneAnswer(language);
+  if (parsed.partySize !== null && parsed.time === null && parsed.intent !== "fees") {
+    return partyAnswer(parsed, language);
+  }
+  if (parsed.intent === "fees") return feesAnswer(parsed, language);
+  if (parsed.intent === "eligibility") return eligibilityAnswer(parsed, language);
+  if (parsed.intent === "batches") return batchAnswer(parsed, language);
+  if (parsed.intent === "recommend") return recommendAnswer(parsed, language);
+  if (mentionsSeniorClass(text)) return seniorClass(language);
+  return unknown(language);
+}
+
+const YES = new Set([
+  "yes",
+  "yes please",
+  "yeah",
+  "yep",
+  "ok",
+  "okay",
+  "हाँ",
+  "हां",
+  "हाँ जी",
+  "हां जी",
+  "जी हाँ",
+  "जी हां",
+  "ठीक",
+  "ठीक है",
+  "ਹਾਂ",
+  "ਹਾਂ ਜੀ",
+  "ਠੀਕ",
+  "ਠੀਕ ਹੈ",
+  "ਠੀਕ ਹੈ ਜੀ",
+]);
+
+function isAffirmative(text: string): boolean {
+  const normalized = text
+    .normalize("NFC")
+    .replace(/[।!?.,]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const folded = normalized.toLowerCase();
+  if (YES.has(folded) || YES.has(normalized)) return true;
+  const starters = [
+    "yes please",
+    "yes send it",
+    "yes send",
+    "जी हाँ",
+    "जी हां",
+    "हाँ जी",
+    "हां जी",
+    "ਹਾਂ ਜੀ",
+    "ठीक है",
+    "ਠੀਕ ਹੈ",
+    "yes",
+    "yeah",
+    "yep",
+    "okay",
+    "ok",
+    "sure",
+    "haan",
+    "ha",
+    "हाँ",
+    "हां",
+    "ਹਾਂ",
+    "ठीक",
+    "ਠੀਕ",
+  ];
+  const source = folded;
+  const start = starters.find((item) => source === item || source.startsWith(`${item} `));
+  if (!start) return false;
+  const rest = source.slice(start.length).trim();
+  if (!rest) return true;
+  return /^(?:please|ji|जी|ਜੀ|send|send it|go ahead|भेज दो|भेज दीजिए|ਭੇਜ ਦਿਓ)(?:\s+(?:please|ji|जी|ਜੀ))?$/.test(rest);
+}
+
+const CHANGE_WORDS = [
+  "change",
+  "changing",
+  "बदल",
+  "बदलना",
+  "बदलो",
+  "बदलिए",
+  "बदलें",
+  "ਬਦਲ",
+  "ਬਦਲਣਾ",
+  "ਬਦਲੋ",
+];
+
+function mentionsChange(text: string): boolean {
+  return CHANGE_WORDS.some((word) => includesTerm(text, word));
+}
+
+function namedSlot(text: string): "name" | "phone" | "course" | "batch" | "date" | null {
+  const token = text.normalize("NFC").replace(/[।!?.,]+/g, "").trim().toLowerCase();
+  const fields: Record<string, "name" | "phone" | "course" | "batch" | "date"> = {
+    name: "name",
+    naam: "name",
+    नाम: "name",
+    ਨਾਮ: "name",
+    ਨਾਂ: "name",
+    phone: "phone",
+    फोन: "phone",
+    फ़ोन: "phone",
+    ਫੋਨ: "phone",
+    ਫ਼ੋਨ: "phone",
+    course: "course",
+    कोर्स: "course",
+    ਕੋਰਸ: "course",
+    batch: "batch",
+    बैच: "batch",
+    ਬੈਚ: "batch",
+    date: "date",
+    तारीख: "date",
+    ਤਾਰੀਖ: "date",
+  };
+  return fields[token] ?? null;
+}
+
+function sameSlots(left: Draft, right: Draft): boolean {
+  return (
+    left.name === right.name &&
+    left.phone === right.phone &&
+    left.course === right.course &&
+    left.batch === right.batch &&
+    left.date === right.date
+  );
+}
+
+function shownCourse(course: Course, language: Language): string {
+  if (language === "hi") return course.name.replaceAll("&", "और");
+  if (language === "pa") return course.name.replaceAll("&", "ਅਤੇ");
+  return course.name;
+}
+
+function windowHint(language: Language): string {
+  if (language === "hi") return "तारीख आज से अगले 45 दिनों के अंदर लिखिए।";
+  if (language === "pa") return "ਤਾਰੀਖ ਅੱਜ ਤੋਂ ਅਗਲੇ 45 ਦਿਨਾਂ ਦੇ ਅੰਦਰ ਲਿਖੋ।";
+  return "Pick a date from today through the next 45 days.";
+}
+
+function applyWeekday(draft: Draft, language: Language, now: Date): { draft: Draft; hint: string | null } {
+  if (!draft.date || !draft.course || !draft.batch) return { draft, hint: null };
+  const today = todayISO(now);
+  const latest = addISODays(today, 45);
+  if (draft.date < today || draft.date > latest) {
+    return { draft: { ...draft, date: undefined }, hint: windowHint(language) };
+  }
+  const course = getCourse(draft.course);
+  const batch = course?.batches.find((item) => item.id === draft.batch);
+  if (batch && batchHasEnded(batch.time, draft.date, now)) {
+    const hint =
+      language === "hi"
+        ? "आज का यह बैच खत्म हो चुका है। कोई और दिन चुनिए।"
+        : language === "pa"
+          ? "ਅੱਜ ਦਾ ਇਹ ਬੈਚ ਖਤਮ ਹੋ ਚੁੱਕਾ ਹੈ। ਕੋਈ ਹੋਰ ਦਿਨ ਚੁਣੋ।"
+          : "That batch has already finished today. Pick another day.";
+    return { draft: { ...draft, date: undefined }, hint };
+  }
+  if (!batch || batch.weekdays.includes(weekdayIndex(draft.date))) return { draft, hint: null };
+  const next = nextOpenDate(draft.date, batch.weekdays, latest);
+  const when = next ? formatLongDate(next, language) : "";
+  const days = daysIn(language, batch.days);
+  const label = batchLabel(draft.batch, language);
+  const hint =
+    language === "hi"
+      ? `यह बैच उस दिन नहीं चलता। ${label} का बैच ${days} चलता है।${when ? ` अगली तारीख ${when} है।` : ""}`
+      : language === "pa"
+        ? `ਇਹ ਬੈਚ ਉਸ ਦਿਨ ਨਹੀਂ ਚੱਲਦਾ। ${label} ਦਾ ਬੈਚ ${days} ਚੱਲਦਾ ਹੈ।${when ? ` ਅਗਲੀ ਤਾਰੀਖ ${when} ਹੈ।` : ""}`
+        : `That batch doesn't run on that day. ${batch.label} runs ${batch.days}.${when ? ` The next open day is ${when}.` : ""}`;
+  return { draft: { ...draft, date: undefined }, hint };
+}
+
+function summaryReply(draft: Draft, language: Language): string {
+  const course = getCourse(draft.course ?? "");
+  const batch = course?.batches.find((item) => item.id === draft.batch);
+  const phone = (draft.phone ?? "").replace(/(\d{5})(\d{5})/, "$1 $2");
+  const when = draft.date ? formatLongDate(draft.date, language) : "";
+  const timing = batch
+    ? `${language === "en" ? batch.label : batchLabel(draft.batch as BatchId, language)} (${daysIn(language, batch.days)}, ${timeIn(language, batch.time)})`
+    : "";
+  const line = `${draft.name} · ${course ? shownCourse(course, language) : draft.course} · ${timing} · ${when} · ${phone}`;
+  return [finish(language, line), academy.counsellor.confirmAsk[language]].join(" ");
+}
+
+function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
+  const next: Draft = { ...draft, confirming: false };
+  const pending = firstMissing(next);
+  if (parsed.name) next.name = parsed.name;
+  else if (pending === "name" && parsed.intent !== "book" && isPersonName(stripPunctuation(text))) {
+    next.name = stripPunctuation(text);
+  }
+  if (parsed.phone) next.phone = parsed.phone;
+  if (parsed.courses.length === 1) next.course = parsed.courses[0];
+  if (parsed.batch && isBatchOnCourse(next.course, parsed.batch)) next.batch = parsed.batch;
+  else if (parsed.batch && !next.course) next.batch = parsed.batch;
+  if (parsed.date) next.date = parsed.date;
+  if (next.course && next.batch && !isBatchOnCourse(next.course, next.batch)) {
+    next.batch = undefined;
+  }
+  return next;
+}
+
+function isBatchOnCourse(slug: string | undefined, batch: BatchId): boolean {
+  if (!slug) return true;
+  const course = getCourse(slug);
+  return Boolean(course?.batches.some((item) => item.id === batch));
+}
+
+function hasStarted(draft: Draft): boolean {
+  return Boolean(
+    draft.active || draft.confirming || draft.name || draft.phone || draft.course || draft.batch || draft.date,
+  );
+}
+
+function firstMissing(draft: Draft): keyof Draft | null {
+  if (!draft.name) return "name";
+  if (!draft.phone) return "phone";
+  if (!draft.course) return "course";
+  if (!draft.batch) return "batch";
+  if (!draft.date) return "date";
+  return null;
+}
+
+function askFor(field: keyof Draft, language: Language): string {
+  const slot = field === "email" || field === "active" || field === "confirming" ? "name" : field;
+  const line = academy.counsellor.ask[language][slot] ?? academy.counsellor.ask.en.name;
+  return language === "en" ? line : speak(language, [line]);
+}
+
+function holding(language: Language): string[] {
+  if (language === "hi") {
+    return ["डिटेल मिल गई", "मैं फ्री ट्रायल क्लास का अनुरोध अभी भेज रही हूँ", "बुकिंग मैं खुद कन्फर्म नहीं करूँगी, अगला जवाब सेंटर की तरफ से होगा"];
+  }
+  if (language === "pa") {
+    return ["ਡਿਟੇਲ ਮਿਲ ਗਈ", "ਮੈਂ ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਦੀ ਬੇਨਤੀ ਹੁਣੇ ਭੇਜ ਰਹੀ ਹਾਂ", "ਬੁਕਿੰਗ ਮੈਂ ਖੁਦ ਕਨਫਰਮ ਨਹੀਂ ਕਰਾਂਗੀ, ਅਗਲਾ ਜਵਾਬ ਸੈਂਟਰ ਵੱਲੋਂ ਹੋਵੇਗਾ"];
+  }
+  return [
+    "I have the details and I’m sending the free trial class request now",
+    "I can’t confirm the booking myself — the next line will come from the centre’s record",
+  ];
+}
+
+function offTopic(language: Language): string {
+  return speak(language, academy.counsellor.offTopic[language]);
+}
+
+function phoneAnswer(language: Language): string {
+  if (language === "hi") {
+    return speak("hi", [
+      `यहाँ लिखा फोन ${academy.phone} है`,
+      "यह नंबर असली लाइन नहीं है",
+      "फ्री ट्रायल क्लास के लिए अपना नंबर यहीं लिख दीजिए",
+    ]);
+  }
+  if (language === "pa") {
+    return speak("pa", [
+      `ਇੱਥੇ ਲਿਖਿਆ ਫੋਨ ${academy.phone} ਹੈ`,
+      "ਇਹ ਨੰਬਰ ਅਸਲੀ ਲਾਈਨ ਨਹੀਂ ਹੈ",
+      "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਲਈ ਆਪਣਾ ਨੰਬਰ ਇੱਥੇ ਲਿਖੋ",
+    ]);
+  }
+  return speak("en", [
+    `The phone listed here is ${academy.phone}`,
+    academy.phoneNote,
+    "For a free trial class, leave your own number here",
+  ]);
+}
+
+function partyAnswer(parsed: ParseResult, language: Language): string {
+  const count = parsed.partySize ?? 0;
+  const batch = parsed.batch ? batchLabel(parsed.batch, language) : null;
+  if (language === "hi") {
+    return speak("hi", [
+      `आप ${count} लोग हैं`,
+      "यह समय नहीं, संख्या है",
+      batch ? `${batch} का बैच भी नोट कर लिया` : "वीकेंड बैच में साथ बैठना आसान रहता है",
+      "कौन सा कोर्स चाहिए?",
+    ]);
+  }
+  if (language === "pa") {
+    return speak("pa", [
+      `ਤੁਸੀਂ ${count} ਲੋਕ ਹੋ`,
+      "ਇਹ ਸਮਾਂ ਨਹੀਂ, ਗਿਣਤੀ ਹੈ",
+      batch ? `${batch} ਦਾ ਬੈਚ ਵੀ ਨੋਟ ਕਰ ਲਿਆ` : "ਵੀਕਐਂਡ ਬੈਚ ਵਿੱਚ ਇਕੱਠੇ ਬੈਠਣਾ ਆਸਾਨ ਰਹਿੰਦਾ ਹੈ",
+      "ਕਿਹੜਾ ਕੋਰਸ ਚਾਹੀਦਾ?",
+    ]);
+  }
+  return speak("en", [
+    `That’s ${count} people, not a time`,
+    batch
+      ? `I’ve noted the ${batch} batch as well`
+      : "A weekend batch is the easier one if you want to sit together",
+    "Which course is it for?",
+  ]);
+}
+
+function feesAnswer(parsed: ParseResult, language: Language): string {
+  const courses = selectedCourses(parsed);
+  const lines = courses.map((course) => feeSentence(course, language));
+  if (language === "hi") {
+    return speak("hi", ["फीस अंदाज़े की है, डेस्क पर यही रेंज बताई जाती है", ...lines]);
+  }
+  if (language === "pa") {
+    return speak("pa", ["ਫੀਸ ਅੰਦਾਜ਼ੇ ਦੀ ਹੈ, ਡੈਸਕ ਉੱਤੇ ਇਹੀ ਰੇਂਜ ਦੱਸੀ ਜਾਂਦੀ ਹੈ", ...lines]);
+  }
+  return speak("en", ["These are indicative fees, the range the desk would quote", ...lines]);
+}
+
+function eligibilityAnswer(parsed: ParseResult, language: Language): string {
+  const courses = selectedCourses(parsed);
+  if (courses.length === 0 || courses.length === academy.courses.length) {
+    if (language === "hi") return "किस कोर्स की शर्त देखनी है?";
+    if (language === "pa") return "ਕਿਸ ਕੋਰਸ ਦੀ ਸ਼ਰਤ ਦੇਖਣੀ ਹੈ?";
+    return speak("en", ["Which course should I check eligibility for?"]);
+  }
+  const lines = courses.map((course) => {
+    const name = shownCourse(course, language);
+    const rule = language === "hi" ? course.eligibilityHi : language === "pa" ? course.eligibilityPa : course.eligibility;
+    if (language === "hi") return `${name} के लिए: ${rule}`;
+    if (language === "pa") return `${name} ਲਈ: ${rule}`;
+    return `${name}: ${rule}`;
+  });
+  return speak(language, lines);
+}
+
+function batchAnswer(parsed: ParseResult, language: Language): string {
+  const courses = parsed.courses.length
+    ? selectedCourses(parsed).filter((course) => parsed.courses.includes(course.slug))
+    : [];
+  const night =
+    parsed.period === "night"
+      ? language === "hi"
+        ? "रात का अलग बैच नहीं है, शाम वाला सबसे लेट है"
+        : language === "pa"
+          ? "ਰਾਤ ਦਾ ਵੱਖਰਾ ਬੈਚ ਨਹੀਂ ਹੈ, ਸ਼ਾਮ ਵਾਲਾ ਸਭ ਤੋਂ ਲੇਟ ਹੈ"
+          : "There isn’t a separate night batch — the evening batch is the late one"
+      : null;
+
+  if (courses.length === 0) {
+    const hint = parsed.batch
+      ? language === "hi"
+        ? `${batchLabel(parsed.batch, "hi")} का बैच हर कोर्स में है`
+        : language === "pa"
+          ? `${batchLabel(parsed.batch, "pa")} ਦਾ ਬੈਚ ਹਰ ਕੋਰਸ ਵਿੱਚ ਹੈ`
+          : `The ${parsed.batch} batch runs for every course`
+      : language === "hi"
+        ? "सुबह, शाम और वीकेंड — तीन बैच हैं"
+        : language === "pa"
+          ? "ਸਵੇਰ, ਸ਼ਾਮ ਅਤੇ ਵੀਕਐਂਡ — ਤਿੰਨ ਬੈਚ ਹਨ"
+          : "There is a morning batch, an evening batch, and a weekend batch";
+    const ask =
+      language === "hi"
+        ? "किस कोर्स का टाइम चाहिए?"
+        : language === "pa"
+          ? "ਕਿਸ ਕੋਰਸ ਦਾ ਟਾਈਮ ਚਾਹੀਦਾ?"
+          : "Which course do you want the times for?";
+    return speak(language, [night, hint, ask].filter((line): line is string => Boolean(line)));
+  }
+
+  const lines = courses.map((course) => {
+    const detail = batchSentence(course, language, parsed.batch ?? undefined);
+    return `${shownCourse(course, language)}: ${detail}`;
+  });
+  return speak(language, [night, ...lines].filter((line): line is string => Boolean(line)));
+}
+
+function admissionAnswer(parsed: ParseResult, language: Language): string {
+  const matched = parsed.courses.length
+    ? academy.courses.filter((course) => parsed.courses.includes(course.slug))
+    : [];
+  const fees = (matched.length ? matched : []).map((course) => feeSentence(course, language));
+  const overview = matched.length === 0 ? academy.counsellor.admissionOverview[language] : null;
+  return speak(language, [
+    academy.counsellor.admission[language],
+    overview,
+    ...fees,
+    academy.counsellor.admissionOffer[language],
+  ]);
+}
+
+function statusAnswer(language: Language): string {
+  if (language === "hi") {
+    return speak("hi", ["ट्रायल क्लास सेंटर फोन पर पक्की करता है", "यह चैट बुकिंग कन्फर्म नहीं करती"]);
+  }
+  if (language === "pa") {
+    return speak("pa", ["ਟਰਾਇਲ ਕਲਾਸ ਸੈਂਟਰ ਫੋਨ ਉੱਤੇ ਪੱਕੀ ਕਰਦਾ ਹੈ", "ਇਹ ਚੈਟ ਬੁਕਿੰਗ ਕਨਫਰਮ ਨਹੀਂ ਕਰਦੀ"]);
+  }
+  return speak("en", [
+    "The centre confirms a trial class by phone",
+    "This chat cannot confirm a booking",
+  ]);
+}
+
+function recommendAnswer(parsed: ParseResult, language: Language): string {
+  const courses = selectedCourses(parsed).filter((course) =>
+    parsed.courses.includes(course.slug),
+  );
+  if (courses.length === 0) return unknown(language);
+  if (courses.length > 1) {
+    const names = courses.map((course) => course.name).join(", ");
+    return academy.counsellor.multiCourse[language].replace("{names}", names);
+  }
+  const course = courses[0];
+  const extra = parsed.batch ? batchSentence(course, language, parsed.batch) : batchSentence(course, language);
+  const trial =
+    language === "hi"
+      ? "फ्री ट्रायल क्लास बुक करनी हो तो कह दीजिए"
+      : language === "pa"
+        ? "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਬੁੱਕ ਕਰਨੀ ਹੋਵੇ ਤਾਂ ਕਹਿ ਦਿਓ"
+        : "Say if you want to book a free trial class";
+  return speak(language, [course.pitch[language], feeSentence(course, language), extra, trial]);
+}
+
+function seniorClass(language: Language): string {
+  if (language === "hi") {
+    return speak("hi", [
+      "क्लास 11 या 12 के लिए तीन रास्ते हैं",
+      "मेडिकल हो तो NEET फाउंडेशन, इंजीनियरिंग हो तो JEE फाउंडेशन, स्कूल की परीक्षा हो तो पंजाब बोर्ड",
+    ]);
+  }
+  if (language === "pa") {
+    return speak("pa", [
+      "ਕਲਾਸ 11 ਜਾਂ 12 ਲਈ ਤਿੰਨ ਰਾਹ ਹਨ",
+      "ਮੈਡੀਕਲ ਹੋਵੇ ਤਾਂ NEET ਫਾਊਂਡੇਸ਼ਨ, ਇੰਜੀਨੀਅਰਿੰਗ ਹੋਵੇ ਤਾਂ JEE ਫਾਊਂਡੇਸ਼ਨ, ਸਕੂਲ ਦੀ ਪ੍ਰੀਖਿਆ ਹੋਵੇ ਤਾਂ ਪੰਜਾਬ ਬੋਰਡ",
+    ]);
+  }
+  return speak("en", [
+    "For class 11 or 12 there are three paths",
+    "Medical goes to NEET Foundation, engineering goes to JEE Foundation, and the school exam goes to Punjab board tuition",
+  ]);
+}
+
+function unknown(language: Language): string {
+  return speak(language, academy.counsellor.unknown[language]);
+}
+
+function selectedCourses(parsed: ParseResult): Course[] {
+  if (parsed.courses.length === 0) return academy.courses;
+  return academy.courses.filter((course) => parsed.courses.includes(course.slug));
+}
+
+function durationIn(language: Language, duration: string): string {
+  if (language === "hi") {
+    return duration
+      .replace("weeks", "हफ्ते")
+      .replace("Academic year, billed monthly", "साल भर, फीस महीने की")
+      .replace("3 months, billed monthly", "3 महीने, फीस महीने की");
+  }
+  if (language === "pa") {
+    return duration
+      .replace("weeks", "ਹਫ਼ਤੇ")
+      .replace("Academic year, billed monthly", "ਸਾਲ ਭਰ, ਫੀਸ ਮਹੀਨੇ ਦੀ")
+      .replace("3 months, billed monthly", "3 ਮਹੀਨੇ, ਫੀਸ ਮਹੀਨੇ ਦੀ");
+  }
+  return duration;
+}
+
+function feeSentence(course: Course, language: Language): string {
+  const duration = durationIn(language, course.duration);
+  return course.fees
+    .map((fee) => {
+      const low = formatInr(fee.min);
+      const high = formatInr(fee.max);
+      const name = shownCourse(course, language);
+      if (language === "hi") {
+        return fee.period === "package"
+          ? `${name} की फीस पूरे पैकेज की ${low} से ${high} है, कोर्स ${duration} का है`
+          : `${name} (${fee.label}) की फीस महीने की ${low} से ${high} है`;
+      }
+      if (language === "pa") {
+        return fee.period === "package"
+          ? `${name} ਦੀ ਫੀਸ ਪੂਰੇ ਪੈਕੇਜ ਦੀ ${low} ਤੋਂ ${high} ਹੈ, ਕੋਰਸ ${duration} ਦਾ ਹੈ`
+          : `${name} (${fee.label}) ਦੀ ਫੀਸ ਮਹੀਨੇ ਦੀ ${low} ਤੋਂ ${high} ਹੈ`;
+      }
+      return fee.period === "package"
+        ? `${course.name} is ${low}–${high} for the full package, over ${course.duration}`
+        : `${course.name} (${fee.label}) is ${low}–${high} a month`;
+    })
+    .join("; ");
+}
+
+function daysIn(language: Language, days: string): string {
+  if (language === "hi") {
+    return days
+      .replace("Mon–Fri", "सोमवार से शुक्रवार")
+      .replace("Mon–Sat", "सोमवार से शनिवार")
+      .replace("Sat–Sun", "शनिवार और रविवार");
+  }
+  if (language === "pa") {
+    return days
+      .replace("Mon–Fri", "ਸੋਮਵਾਰ ਤੋਂ ਸ਼ੁੱਕਰਵਾਰ")
+      .replace("Mon–Sat", "ਸੋਮਵਾਰ ਤੋਂ ਸ਼ਨੀਵਾਰ")
+      .replace("Sat–Sun", "ਸ਼ਨੀਵਾਰ ਅਤੇ ਐਤਵਾਰ");
+  }
+  return days;
+}
+
+function timeIn(language: Language, time: string): string {
+  if (language === "en") return time;
+  const range = parseClockRange(time);
+  if (!range) return time;
+  const start = clockPart(language, range.start);
+  const end = clockPart(language, range.end);
+  const startPeriod = start.slice(0, start.indexOf(" "));
+  const endPeriod = end.slice(0, end.indexOf(" "));
+  const endHour = end.slice(end.indexOf(" ") + 1);
+  if (language === "hi") {
+    return startPeriod === endPeriod ? `${start} से ${endHour} बजे` : `${start} से ${end} बजे`;
+  }
+  return startPeriod === endPeriod ? `${start} ਤੋਂ ${endHour} ਵਜੇ` : `${start} ਤੋਂ ${end} ਵਜੇ`;
+}
+
+function parseClockRange(time: string): {
+  start: { hour: number; minute: number; meridiem: "am" | "pm" };
+  end: { hour: number; minute: number; meridiem: "am" | "pm" };
+} | null {
+  const shared = time.match(/^(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+  if (shared) {
+    const meridiem = shared[5].toLowerCase() as "am" | "pm";
+    return {
+      start: { hour: Number(shared[1]), minute: Number(shared[2]), meridiem },
+      end: { hour: Number(shared[3]), minute: Number(shared[4]), meridiem },
+    };
+  }
+  const split = time.match(/^(\d{1,2}):(\d{2})\s*(am|pm)\s*[–-]\s*(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+  if (!split) return null;
+  return {
+    start: { hour: Number(split[1]), minute: Number(split[2]), meridiem: split[3].toLowerCase() as "am" | "pm" },
+    end: { hour: Number(split[4]), minute: Number(split[5]), meridiem: split[6].toLowerCase() as "am" | "pm" },
+  };
+}
+
+function clockPart(
+  language: Language,
+  part: { hour: number; minute: number; meridiem: "am" | "pm" },
+): string {
+  const hour24 = part.meridiem === "pm" && part.hour < 12 ? part.hour + 12 : part.meridiem === "am" && part.hour === 12 ? 0 : part.hour;
+  const shown = part.minute === 0 ? String(part.hour) : `${part.hour}:${String(part.minute).padStart(2, "0")}`;
+  const hindi = hour24 === 12 ? "दोपहर" : hour24 < 12 ? "सुबह" : hour24 < 16 ? "दोपहर" : "शाम";
+  const punjabi = hour24 === 12 ? "ਦੁਪਹਿਰ" : hour24 < 12 ? "ਸਵੇਰੇ" : hour24 < 16 ? "ਦੁਪਹਿਰ" : "ਸ਼ਾਮ";
+  return `${language === "pa" ? punjabi : hindi} ${shown}`;
+}
+
+function batchSentence(course: Course, language: Language, only?: BatchId): string {
+  const batches = only ? course.batches.filter((batch) => batch.id === only) : course.batches;
+  return batches
+    .map((batch) => {
+      const days = daysIn(language, batch.days);
+      const time = timeIn(language, batch.time);
+      if (language === "hi") {
+        const name =
+          batch.id === "morning" ? "सुबह का बैच" : batch.id === "evening" ? "शाम का बैच" : "वीकेंड बैच";
+        return `${name} ${days}, ${time}`;
+      }
+      if (language === "pa") {
+        const name =
+          batch.id === "morning" ? "ਸਵੇਰ ਦਾ ਬੈਚ" : batch.id === "evening" ? "ਸ਼ਾਮ ਦਾ ਬੈਚ" : "ਵੀਕਐਂਡ ਬੈਚ";
+        return `${name} ${days}, ${time}`;
+      }
+      return `${batch.label} batch ${days}, ${time}`;
+    })
+    .join("; ");
+}
+
+function mentionsSeniorClass(text: string): boolean {
+  return (
+    includesTerm(text, "class 11") ||
+    includesTerm(text, "class 12") ||
+    includesTerm(text, "11th") ||
+    includesTerm(text, "12th") ||
+    text.includes("क्लास 11") ||
+    text.includes("क्लास 12") ||
+    text.includes("कक्षा 11") ||
+    text.includes("ਕਲਾਸ 11") ||
+    text.includes("ਕਲਾਸ 12")
+  );
+}
+
+function stripPunctuation(value: string): string {
+  return value.normalize("NFC").trim().replace(/[।.!?]+$/u, "");
+}
+
+export function speak(language: Language, sentences: Array<string | null | undefined | false>): string {
+  return sentences
+    .filter((sentence): sentence is string => Boolean(sentence))
+    .map((sentence) => finish(language, sentence))
+    .join(" ");
+}
+
+function finish(language: Language, sentence: string): string {
+  const trimmed = sentence.trim();
+  if (!trimmed) return "";
+  if (/[?]$/.test(trimmed)) return trimmed;
+  if (language === "en") {
+    if (/[.!]$/.test(trimmed)) return trimmed;
+    return `${trimmed}.`;
+  }
+  const core = trimmed.replace(/[।.]+$/u, "");
+  return `${core}।`;
+}
+
+export function savedBookingReply(
+  language: Language,
+  booking: { id: string; name: string; course: string; batch: BatchId; date: string },
+): string {
+  const course = getCourse(booking.course);
+  const courseName = course ? shownCourse(course, language) : booking.course;
+  const when = formatLongDate(booking.date, language);
+  const batch = batchLabel(booking.batch, language);
+  if (language === "hi") {
+    return speak("hi", [
+      "फ्री ट्रायल क्लास का अनुरोध दर्ज हो गया है",
+      `रेफरेंस ${booking.id} है`,
+      `${booking.name}, ${courseName}, ${batch} बैच, ${when}`,
+      "यह साइट ईमेल नहीं भेजती, रेफरेंस संभाल कर रखिए",
+    ]);
+  }
+  if (language === "pa") {
+    return speak("pa", [
+      "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਦੀ ਬੇਨਤੀ ਦਰਜ ਹੋ ਗਈ ਹੈ",
+      `ਰੈਫਰੈਂਸ ${booking.id} ਹੈ`,
+      `${booking.name}, ${courseName}, ${batch} ਬੈਚ, ${when}`,
+      "ਇਹ ਸਾਈਟ ਈਮੇਲ ਨਹੀਂ ਭੇਜਦੀ, ਰੈਫਰੈਂਸ ਸੰਭਾਲ ਕੇ ਰੱਖੋ",
+    ]);
+  }
+  return speak("en", [
+    "Your free trial class request is in",
+    `Reference ${booking.id}`,
+    `${booking.name}, ${courseName}, ${batch} batch, ${when}`,
+    "This site does not send email — please keep the reference",
+  ]);
+}
+
+export function bookingErrorReply(
+  language: Language,
+  error: "rate_limit" | "duplicate_phone" | "invalid" | "bad_json",
+  detail?: string,
+  fields?: string[],
+  limit?: "phone" | "ip" | "site",
+  dateReason?: "window" | "weekday" | "ended",
+): string {
+  if (error === "rate_limit") {
+    if (limit === "phone") {
+      if (language === "hi") return speak("hi", ["इस नंबर से बहुत कोशिशें हो गईं", "दस मिनट रुक कर फिर लिखिए"]);
+      if (language === "pa") return speak("pa", ["ਇਸ ਨੰਬਰ ਤੋਂ ਬਹੁਤ ਕੋਸ਼ਿਸ਼ਾਂ ਹੋ ਗਈਆਂ", "ਦਸ ਮਿੰਟ ਰੁਕ ਕੇ ਫਿਰ ਲਿਖੋ"]);
+      return speak("en", ["Too many attempts for this number", "Wait ten minutes and try again"]);
+    }
+    if (limit === "site") {
+      if (language === "hi") return speak("hi", ["इस घंटे में बहुत अनुरोध आ चुके हैं", "थोड़ी देर बाद फिर लिखिए"]);
+      if (language === "pa") return speak("pa", ["ਇਸ ਘੰਟੇ ਵਿੱਚ ਬਹੁਤ ਬੇਨਤੀਆਂ ਆ ਚੁੱਕੀਆਂ ਹਨ", "ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਫਿਰ ਲਿਖੋ"]);
+      return speak("en", ["Too many trial requests this hour", "Try again later"]);
+    }
+    if (language === "hi") {
+      return speak("hi", [
+        "इस कनेक्शन से बहुत कोशिशें हो गईं",
+        "दस मिनट रुक कर फ्री ट्रायल क्लास फिर से लिखिए",
+      ]);
+    }
+    if (language === "pa") {
+      return speak("pa", [
+        "ਇਸ ਕਨੈਕਸ਼ਨ ਤੋਂ ਬਹੁਤ ਕੋਸ਼ਿਸ਼ਾਂ ਹੋ ਗਈਆਂ",
+        "ਦਸ ਮਿੰਟ ਰੁਕ ਕੇ ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਫਿਰ ਲਿਖੋ",
+      ]);
+    }
+    return speak("en", [
+      "Too many attempts from this connection",
+      "Wait ten minutes and send the free trial class again",
+    ]);
+  }
+  if (error === "duplicate_phone") {
+    if (language === "hi") {
+      return speak("hi", [
+        "इस फोन नंबर से आज पहले ही एक फ्री ट्रायल क्लास लिखी जा चुकी है",
+        "एक नंबर पर एक दिन में एक ट्रायल",
+      ]);
+    }
+    if (language === "pa") {
+      return speak("pa", [
+        "ਇਸ ਫੋਨ ਨੰਬਰ ਤੋਂ ਅੱਜ ਪਹਿਲਾਂ ਹੀ ਇੱਕ ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਲਿਖੀ ਜਾ ਚੁੱਕੀ ਹੈ",
+        "ਇੱਕ ਨੰਬਰ ਉੱਤੇ ਇੱਕ ਦਿਨ ਵਿੱਚ ਇੱਕ ਟਰਾਇਲ",
+      ]);
+    }
+    return speak("en", [
+      "This phone number already has a free trial class request today",
+      "One trial per number per day",
+    ]);
+  }
+  if (language === "hi") {
+    if (fields?.includes("date") && dateReason === "ended") {
+      return "आज का यह बैच खत्म हो चुका है। कोई और दिन चुनिए।";
+    }
+    if (fields?.includes("date") && dateReason !== "weekday") return windowHint("hi");
+    if (fields?.includes("date")) return speak("hi", ["यह तारीख इस बैच के दिन नहीं बैठती", "बैच वाले दिन की तारीख लिखिए"]);
+    if (fields?.includes("phone")) return speak("hi", ["फोन दस अंक का होना चाहिए, 6, 7, 8 या 9 से शुरू"]);
+    return speak("hi", ["कुछ बात अधूरी है, नाम, फोन, कोर्स, बैच और तारीख फिर से देख लीजिए"]);
+  }
+  if (language === "pa") {
+    if (fields?.includes("date") && dateReason === "ended") {
+      return "ਅੱਜ ਦਾ ਇਹ ਬੈਚ ਖਤਮ ਹੋ ਚੁੱਕਾ ਹੈ। ਕੋਈ ਹੋਰ ਦਿਨ ਚੁਣੋ।";
+    }
+    if (fields?.includes("date") && dateReason !== "weekday") return windowHint("pa");
+    if (fields?.includes("date")) return speak("pa", ["ਇਹ ਤਾਰੀਖ ਇਸ ਬੈਚ ਦੇ ਦਿਨ ਨਹੀਂ ਬੈਠਦੀ", "ਬੈਚ ਵਾਲੇ ਦਿਨ ਦੀ ਤਾਰੀਖ ਲਿਖੋ"]);
+    if (fields?.includes("phone")) return speak("pa", ["ਫੋਨ ਦਸ ਅੰਕਾਂ ਦਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ, 6, 7, 8 ਜਾਂ 9 ਤੋਂ ਸ਼ੁਰੂ"]);
+    return speak("pa", ["ਕੁਝ ਗੱਲ ਅਧੂਰੀ ਹੈ, ਨਾਮ, ਫੋਨ, ਕੋਰਸ, ਬੈਚ ਅਤੇ ਤਾਰੀਖ ਦੁਬਾਰਾ ਦੇਖ ਲਵੋ"]);
+  }
+  return speak("en", [detail ?? "Something’s missing. Check the name, phone, course, batch, and date."]);
+}
+
+export function languageSwitched(language: Language): string {
+  if (language === "hi") return speak("hi", ["अब मैं हिन्दी में बात करूँगी"]);
+  if (language === "pa") return speak("pa", ["ਹੁਣ ਮੈਂ ਪੰਜਾਬੀ ਵਿੱਚ ਗੱਲ ਕਰਾਂਗੀ"]);
+  return speak("en", ["I’ll continue in English"]);
+}

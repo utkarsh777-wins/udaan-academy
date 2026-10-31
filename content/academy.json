@@ -1,0 +1,741 @@
+{
+  "name": "Udaan Academy",
+  "nameHindi": "उड़ान अकादमी",
+  "namePunjabi": "ਉਡਾਣ ਅਕਾਦਮੀ",
+  "tagline": "Coaching on GT Road for the exam in front of you.",
+  "description": "Udaan Academy is a coaching centre on GT Road in Phagwara, Punjab, a short way from Lovely Professional University. Courses cover IELTS and PTE, JEE and NEET foundation for classes 11 and 12, Punjab board tuition for classes 9 to 12, and spoken English.",
+  "phone": "+91 98XXX XXXXX (sample)",
+  "phoneNote": "This phone number is a placeholder. It is not a working line.",
+  "email": "hello@udaan.example",
+  "emailNote": "This address is a placeholder. The site does not send email.",
+  "hours": "Monday to Saturday, 6:30 am to 8:00 pm. Sunday, 9:00 am to 1:00 pm for weekend batches and the doubt desk.",
+  "location": {
+    "area": "GT Road, Phagwara, Punjab",
+    "near": "A short way from Lovely Professional University",
+    "addressLabel": "Address",
+    "lines": [
+      "GT Road, Phagwara, Punjab",
+      "Landmark only: near Lovely Professional University"
+    ],
+    "disclaimer": "A fictional coaching centre on GT Road in Phagwara. No real PIN code, no STD code, and not a map pin on any real institution."
+  },
+  "goals": [
+    {
+      "id": "all",
+      "label": "All courses",
+      "blurb": "The full list"
+    },
+    {
+      "id": "abroad",
+      "label": "Study abroad",
+      "blurb": "IELTS and PTE"
+    },
+    {
+      "id": "engineering",
+      "label": "Engineering",
+      "blurb": "JEE foundation"
+    },
+    {
+      "id": "medical",
+      "label": "Medical",
+      "blurb": "NEET foundation"
+    },
+    {
+      "id": "board",
+      "label": "Punjab board",
+      "blurb": "Classes 9 to 12"
+    },
+    {
+      "id": "spoken",
+      "label": "Spoken English",
+      "blurb": "Everyday speaking"
+    }
+  ],
+  "courses": [
+    {
+      "slug": "ielts-pte",
+      "name": "IELTS & PTE",
+      "goal": "abroad",
+      "summary": "Module practice and weekly mock tests for students planning to study or settle abroad.",
+      "about": [
+        "The batch works through listening, reading, writing, and speaking, with one full mock test each week. You get the paper back with notes on what to fix, not a promise of a band.",
+        "Most students on GT Road take this before a study visa or a work visa. Tell us which test you are sitting — IELTS Academic, IELTS General, or PTE — on the first day."
+      ],
+      "eligibility": "Class 12 students, graduates, and working people. You do not need a previous score.",
+      "duration": "8–10 weeks",
+      "fees": [
+        {
+          "label": "Full package",
+          "min": 8000,
+          "max": 12000,
+          "period": "package"
+        }
+      ],
+      "batches": [
+        {
+          "id": "morning",
+          "label": "Morning",
+          "days": "Mon–Fri",
+          "time": "7:00–9:00 am",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "evening",
+          "label": "Evening",
+          "days": "Mon–Fri",
+          "time": "5:00–7:00 pm",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "weekend",
+          "label": "Weekend",
+          "days": "Sat–Sun",
+          "time": "9:00 am–12:00 pm",
+          "weekdays": [
+            6,
+            0
+          ]
+        }
+      ],
+      "includes": [
+        "Weekly mock test",
+        "Speaking practice in pairs",
+        "Writing feedback on two tasks a week"
+      ],
+      "match": [
+        "ielts",
+        "pte",
+        "canada",
+        "australia",
+        "abroad",
+        "immigration",
+        "study visa",
+        "कनाडा",
+        "विदेश",
+        "ऑस्ट्रेलिया",
+        "आईएलटीएस",
+        "पीटीई",
+        "ਕੈਨੇਡਾ",
+        "ਵਿਦੇਸ਼",
+        "ਆਈਲਟਸ"
+      ],
+      "pitch": {
+        "en": "If you are heading to Canada or anywhere else abroad, IELTS and PTE is the course that fits.",
+        "hi": "कनाडा या किसी और देश जाना है तो IELTS और PTE का कोर्स सही रहेगा।",
+        "pa": "ਕੈਨੇਡਾ ਜਾਂ ਕਿਸੇ ਹੋਰ ਦੇਸ਼ ਜਾਣਾ ਹੈ ਤਾਂ IELTS ਅਤੇ PTE ਦਾ ਕੋਰਸ ਠੀਕ ਰਹੇਗਾ।"
+      },
+      "eligibilityHi": "क्लास 12 के छात्र, ग्रेजुएट और नौकरी वाले लोग। पहले का स्कोर जरूरी नहीं।",
+      "eligibilityPa": "ਕਲਾਸ 12 ਦੇ ਵਿਦਿਆਰਥੀ, ਗ੍ਰੈਜੂਏਟ ਅਤੇ ਨੌਕਰੀ ਵਾਲੇ। ਪਹਿਲਾਂ ਦਾ ਸਕੋਰ ਜ਼ਰੂਰੀ ਨਹੀਂ।"
+    },
+    {
+      "slug": "jee-foundation",
+      "name": "JEE Foundation",
+      "goal": "engineering",
+      "summary": "Physics, chemistry, and maths for class 11 and 12 students sitting JEE Main.",
+      "about": [
+        "The year follows the class 11 and 12 syllabus and adds JEE-style questions once a chapter is steady. Sunday of the weekend batch is a timed paper.",
+        "This is foundation coaching beside school, not a residential camp. Homework is short enough to finish on a school night."
+      ],
+      "eligibility": "Students in class 11 or 12, or a drop year, with physics, chemistry, and maths.",
+      "duration": "Academic year, billed monthly",
+      "fees": [
+        {
+          "label": "Monthly",
+          "min": 4200,
+          "max": 5500,
+          "period": "month"
+        }
+      ],
+      "batches": [
+        {
+          "id": "morning",
+          "label": "Morning",
+          "days": "Mon–Sat",
+          "time": "7:00–9:30 am",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "id": "evening",
+          "label": "Evening",
+          "days": "Mon–Sat",
+          "time": "4:00–6:30 pm",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "id": "weekend",
+          "label": "Weekend",
+          "days": "Sat–Sun",
+          "time": "9:00 am–1:00 pm",
+          "weekdays": [
+            6,
+            0
+          ]
+        }
+      ],
+      "includes": [
+        "Chapter tests",
+        "Doubt session after the evening batch",
+        "One full paper on the weekend"
+      ],
+      "match": [
+        "jee",
+        "iit",
+        "engineering",
+        "engineer",
+        "जेईई",
+        "इंजीनियरिंग",
+        "आईआईटी",
+        "ਜੇਈਈ",
+        "ਇੰਜੀਨੀਅਰਿੰਗ"
+      ],
+      "pitch": {
+        "en": "Class 11 or 12 with an engineering aim sits in JEE Foundation — physics, chemistry, and maths.",
+        "hi": "क्लास 11 या 12 में इंजीनियरिंग का लक्ष्य है तो JEE फाउंडेशन सही रहेगा। फिजिक्स, केमिस्ट्री और मैथ्स पढ़ाई जाती है।",
+        "pa": "ਕਲਾਸ 11 ਜਾਂ 12 ਵਿੱਚ ਇੰਜੀਨੀਅਰਿੰਗ ਦਾ ਟੀਚਾ ਹੈ ਤਾਂ JEE ਫਾਊਂਡੇਸ਼ਨ ਠੀਕ ਰਹੇਗਾ। ਫਿਜ਼ਿਕਸ, ਕੈਮਿਸਟਰੀ ਅਤੇ ਮੈਥ ਪੜ੍ਹਾਈ ਜਾਂਦੀ ਹੈ।"
+      },
+      "eligibilityHi": "क्लास 11 या 12 के छात्र, या एक ड्रॉप ईयर, जिनके पास फिजिक्स, केमिस्ट्री और मैथ्स हो।",
+      "eligibilityPa": "ਕਲਾਸ 11 ਜਾਂ 12 ਦੇ ਵਿਦਿਆਰਥੀ, ਜਾਂ ਇੱਕ ਡ੍ਰਾਪ ਈਅਰ, ਜਿਨ੍ਹਾਂ ਕੋਲ ਫਿਜ਼ਿਕਸ, ਕੈਮਿਸਟਰੀ ਅਤੇ ਮੈਥ ਹੋਵੇ।"
+    },
+    {
+      "slug": "neet-foundation",
+      "name": "NEET Foundation",
+      "goal": "medical",
+      "summary": "Biology-heavy foundation for class 11 and 12 students aiming at NEET.",
+      "about": [
+        "Biology gets the longest hour. Physics and chemistry stay in the same batch so you are not running between centres.",
+        "We do not publish ranks or selection counts here. A centre would add those only with the student’s permission."
+      ],
+      "eligibility": "Students in class 11 or 12 medical, or a drop year, with physics, chemistry, and biology.",
+      "duration": "Academic year, billed monthly",
+      "fees": [
+        {
+          "label": "Monthly",
+          "min": 4500,
+          "max": 5800,
+          "period": "month"
+        }
+      ],
+      "batches": [
+        {
+          "id": "morning",
+          "label": "Morning",
+          "days": "Mon–Sat",
+          "time": "7:30–10:00 am",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "id": "evening",
+          "label": "Evening",
+          "days": "Mon–Sat",
+          "time": "3:30–6:00 pm",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "id": "weekend",
+          "label": "Weekend",
+          "days": "Sat–Sun",
+          "time": "9:00 am–1:00 pm",
+          "weekdays": [
+            6,
+            0
+          ]
+        }
+      ],
+      "includes": [
+        "NCERT-first biology hours",
+        "Doubt session on Thursday",
+        "Fortnightly practice test"
+      ],
+      "match": [
+        "neet",
+        "medical",
+        "mbbs",
+        "doctor",
+        "aiims",
+        "class 11 medical",
+        "class 12 medical",
+        "नीट",
+        "मेडिकल",
+        "डॉक्टर",
+        "एमबीबीएस",
+        "क्लास 11 मेडिकल",
+        "कक्षा 11 मेडिकल",
+        "ਕਲਾਸ 11 ਮੈਡੀਕਲ",
+        "ਨੀਟ",
+        "ਮੈਡੀਕਲ",
+        "ਡਾਕਟਰ"
+      ],
+      "pitch": {
+        "en": "Class 11 or 12 medical belongs in NEET Foundation. Biology leads, with physics and chemistry in the same batch.",
+        "hi": "क्लास 11 या 12 मेडिकल है तो NEET फाउंडेशन सही रहेगा। बायोलॉजी ज़्यादा पढ़ाई जाती है, फिजिक्स और केमिस्ट्री उसी बैच में रहती है।",
+        "pa": "ਕਲਾਸ 11 ਜਾਂ 12 ਮੈਡੀਕਲ ਹੈ ਤਾਂ NEET ਫਾਊਂਡੇਸ਼ਨ ਠੀਕ ਰਹੇਗਾ। ਬਾਇਓਲੋਜੀ ਵੱਧ ਪੜ੍ਹਾਈ ਜਾਂਦੀ ਹੈ, ਫਿਜ਼ਿਕਸ ਅਤੇ ਕੈਮਿਸਟਰੀ ਉਸੇ ਬੈਚ ਵਿੱਚ ਰਹਿੰਦੀ ਹੈ।"
+      },
+      "eligibilityHi": "क्लास 11 या 12 मेडिकल के छात्र, या एक ड्रॉप ईयर, जिनके पास फिजिक्स, केमिस्ट्री और बायोलॉजी हो।",
+      "eligibilityPa": "ਕਲਾਸ 11 ਜਾਂ 12 ਮੈਡੀਕਲ ਦੇ ਵਿਦਿਆਰਥੀ, ਜਾਂ ਇੱਕ ਡ੍ਰਾਪ ਈਅਰ, ਜਿਨ੍ਹਾਂ ਕੋਲ ਫਿਜ਼ਿਕਸ, ਕੈਮਿਸਟਰੀ ਅਤੇ ਬਾਇਓਲੋਜੀ ਹੋਵੇ।"
+    },
+    {
+      "slug": "punjab-board",
+      "name": "Punjab Board Tuition",
+      "goal": "board",
+      "summary": "School tuition for Punjab School Education Board classes 9 to 12.",
+      "about": [
+        "Classes follow the PSEB textbook. The aim is the school exam in March, with room for a student who is also sitting JEE or NEET to keep board answers clean.",
+        "Class 9 and 10 sit together for maths and science. Class 11 and 12 are split by stream once the group is large enough. Until then, the teacher sets separate homework."
+      ],
+      "eligibility": "Students enrolled in Punjab board classes 9, 10, 11, or 12.",
+      "duration": "Academic year, billed monthly",
+      "fees": [
+        {
+          "label": "Classes 9–10",
+          "min": 1800,
+          "max": 2400,
+          "period": "month"
+        },
+        {
+          "label": "Classes 11–12",
+          "min": 2600,
+          "max": 3600,
+          "period": "month"
+        }
+      ],
+      "batches": [
+        {
+          "id": "morning",
+          "label": "Morning",
+          "days": "Mon–Sat",
+          "time": "6:30–8:00 am",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "id": "evening",
+          "label": "Evening",
+          "days": "Mon–Sat",
+          "time": "4:30–6:00 pm",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "id": "weekend",
+          "label": "Weekend",
+          "days": "Sat–Sun",
+          "time": "10:00 am–12:30 pm",
+          "weekdays": [
+            6,
+            0
+          ]
+        }
+      ],
+      "includes": [
+        "Textbook homework check",
+        "Pre-board papers from December",
+        "Doubt time on Saturday"
+      ],
+      "match": [
+        "punjab board",
+        "pseb",
+        "board exam",
+        "board",
+        "matric",
+        "class 9",
+        "class 10",
+        "9th",
+        "10th",
+        "बोर्ड",
+        "पंजाब बोर्ड",
+        "नौवीं",
+        "दसवीं",
+        "ਬੋਰਡ",
+        "ਪੰਜਾਬ ਬੋਰਡ",
+        "ਨੌਵੀਂ",
+        "ਦਸਵੀਂ"
+      ],
+      "pitch": {
+        "en": "Punjab board classes 9 to 12 are taught from the PSEB textbook. The school exam is the target.",
+        "hi": "पंजाब बोर्ड की क्लास 9 से 12 की ट्यूशन PSEB की किताब से चलती है। लक्ष्य स्कूल की परीक्षा है।",
+        "pa": "ਪੰਜਾਬ ਬੋਰਡ ਦੀ ਕਲਾਸ 9 ਤੋਂ 12 ਦੀ ਟਿਊਸ਼ਨ PSEB ਦੀ ਕਿਤਾਬ ਤੋਂ ਚੱਲਦੀ ਹੈ। ਟੀਚਾ ਸਕੂਲ ਦੀ ਪ੍ਰੀਖਿਆ ਹੈ।"
+      },
+      "eligibilityHi": "पंजाब बोर्ड की क्लास 9, 10, 11 या 12 में पढ़ने वाले छात्र।",
+      "eligibilityPa": "ਪੰਜਾਬ ਬੋਰਡ ਦੀ ਕਲਾਸ 9, 10, 11 ਜਾਂ 12 ਵਿੱਚ ਪੜ੍ਹਦੇ ਵਿਦਿਆਰਥੀ।"
+    },
+    {
+      "slug": "spoken-english",
+      "name": "Spoken English",
+      "goal": "spoken",
+      "summary": "A small batch for people who understand English and want to speak it.",
+      "about": [
+        "Each class is mostly talking: a short prompt, pair work, then a correction that does not stop the story. Grammar is a note at the end, not the whole hour.",
+        "Shopkeepers, class 11 students, and parents sit in the same batch. You will be asked to speak on the first day."
+      ],
+      "eligibility": "Class 8 and above, and adults. No entrance test.",
+      "duration": "3 months, billed monthly",
+      "fees": [
+        {
+          "label": "Monthly",
+          "min": 1500,
+          "max": 2200,
+          "period": "month"
+        }
+      ],
+      "batches": [
+        {
+          "id": "morning",
+          "label": "Morning",
+          "days": "Mon–Fri",
+          "time": "8:00–9:00 am",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "evening",
+          "label": "Evening",
+          "days": "Mon–Fri",
+          "time": "6:30–7:30 pm",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "weekend",
+          "label": "Weekend",
+          "days": "Sat–Sun",
+          "time": "11:00 am–1:00 pm",
+          "weekdays": [
+            6,
+            0
+          ]
+        }
+      ],
+      "includes": [
+        "Pair speaking every class",
+        "A short voice note to re-record at home",
+        "No written exam"
+      ],
+      "match": [
+        "spoken english",
+        "speaking english",
+        "speak english",
+        "english speaking",
+        "अंग्रेजी बोल",
+        "अंग्रेज़ी बोल",
+        "स्पोकन",
+        "ਅੰਗਰੇਜ਼ੀ ਬੋਲ",
+        "ਸਪੋਕਨ"
+      ],
+      "pitch": {
+        "en": "Spoken English is the small batch for people who want the words to come out, not another grammar chapter.",
+        "hi": "अंग्रेज़ी बोलनी है तो स्पोकन इंग्लिश का बैच सही रहेगा। क्लास में ज़्यादातर बात होती है, ग्रामर का लंबा चैप्टर नहीं।",
+        "pa": "ਅੰਗਰੇਜ਼ੀ ਬੋਲਣੀ ਹੈ ਤਾਂ ਸਪੋਕਨ ਇੰਗਲਿਸ਼ ਦਾ ਬੈਚ ਠੀਕ ਰਹੇਗਾ। ਕਲਾਸ ਵਿੱਚ ਜ਼ਿਆਦਾਤਰ ਗੱਲ ਹੁੰਦੀ ਹੈ, ਗ੍ਰਾਮਰ ਦਾ ਲੰਮਾ ਚੈਪਟਰ ਨਹੀਂ।"
+      },
+      "eligibilityHi": "क्लास 8 और उससे ऊपर, और बड़े लोग। कोई प्रवेश परीक्षा नहीं।",
+      "eligibilityPa": "ਕਲਾਸ 8 ਅਤੇ ਉਸ ਤੋਂ ਉੱਪਰ, ਅਤੇ ਵੱਡੇ ਲੋਕ। ਕੋਈ ਦਾਖਲਾ ਪ੍ਰੀਖਿਆ ਨਹੀਂ।"
+    }
+  ],
+  "faculty": [
+    {
+      "id": "hk",
+      "initials": "HK",
+      "name": "Harleen Kaur",
+      "role": "IELTS speaking and spoken English",
+      "bio": "Stands in for the teacher who would take IELTS speaking and the evening spoken English batch."
+    },
+    {
+      "id": "as",
+      "initials": "AS",
+      "name": "Arjun Singh",
+      "role": "Physics, JEE foundation",
+      "bio": "Stands in for the physics teacher on the class 11 and 12 engineering batch."
+    },
+    {
+      "id": "ms",
+      "initials": "MS",
+      "name": "Meera Sharma",
+      "role": "Biology, NEET foundation",
+      "bio": "Stands in for the biology teacher on the medical batch."
+    },
+    {
+      "id": "pg",
+      "initials": "PG",
+      "name": "Prabhjot Gill",
+      "role": "Maths, Punjab board",
+      "bio": "Stands in for the maths teacher on the PSEB class 9 to 12 batches."
+    }
+  ],
+  "facilities": [
+    {
+      "id": "ac",
+      "title": "AC classrooms",
+      "body": "Two air-conditioned rooms on the first floor, about eighteen seats each, so a speaking round still fits."
+    },
+    {
+      "id": "mocks",
+      "title": "Mock tests",
+      "body": "Timed papers for IELTS, JEE, NEET, and the board. A mock is practice. It is not a predicted score."
+    },
+    {
+      "id": "library",
+      "title": "Library corner",
+      "body": "PSEB textbooks, NCERT, and a shelf of IELTS practice books you can sit with between batches."
+    },
+    {
+      "id": "doubts",
+      "title": "Doubt sessions",
+      "body": "A teacher stays back after the evening batch on weekdays, and the Sunday desk is open from 10 to 1."
+    }
+  ],
+  "why": [
+    {
+      "title": "The fee is on the page",
+      "body": "Monthly fees sit between ₹1,500 and ₹5,800. IELTS and PTE is a package, not a monthly bill. Nothing is added at the desk that was not written here."
+    },
+    {
+      "title": "Batches stay small",
+      "body": "Eighteen seats, so the teacher can hear you speak and can tell whose homework came back."
+    },
+    {
+      "title": "Easy from GT Road",
+      "body": "The centre is on GT Road in Phagwara, a short way from Lovely Professional University. Students come from Phagwara town and the highway side."
+    },
+    {
+      "title": "Doubt time is on the timetable",
+      "body": "It is not a favour you have to ask for. The evening teacher stays, and Sunday morning is a doubt desk."
+    }
+  ],
+  "upcoming": [
+    {
+      "course": "ielts-pte",
+      "batch": "morning",
+      "starts": "2026-11-09",
+      "note": "Open for a free trial class"
+    },
+    {
+      "course": "neet-foundation",
+      "batch": "evening",
+      "starts": "2026-11-10",
+      "note": "Open for a free trial class"
+    },
+    {
+      "course": "punjab-board",
+      "batch": "evening",
+      "starts": "2026-11-11",
+      "note": "Open for a free trial class"
+    },
+    {
+      "course": "spoken-english",
+      "batch": "weekend",
+      "starts": "2026-11-14",
+      "note": "Open for a free trial class"
+    }
+  ],
+  "faqs": [
+    {
+      "question": "Is Udaan Academy a real centre?",
+      "answer": "Udaan Academy on this website is fictional. A local business can replace the name, courses, and photos. The phone number and address are placeholders."
+    },
+    {
+      "question": "Do you promise a band score or a rank?",
+      "answer": "No. This site does not show scores, ranks, or selection counts. A real centre would add only results it can stand behind, with the student’s permission."
+    },
+    {
+      "question": "Can I sit in a class before I pay?",
+      "answer": "Yes. Book a free trial class and pick a course, a batch, and a date. One trial per phone number per day."
+    },
+    {
+      "question": "Which board do you teach?",
+      "answer": "Punjab School Education Board, classes 9 to 12. JEE and NEET batches follow the class 11 and 12 science syllabus beside that."
+    },
+    {
+      "question": "Do you take fees online?",
+      "answer": "No. Fees are paid at the centre. The site stores a trial-class request and does not take payment."
+    },
+    {
+      "question": "Will someone call me back?",
+      "answer": "The centre would call the number you leave. This website stores the request and shows you a reference number. It does not send email, and the phone on this page is not a working line."
+    }
+  ],
+  "results": {
+    "title": "Your results showcase",
+    "body": "A working coaching site would place verified scores here, with permission from the students. This space stays empty on purpose. It does not invent band scores, ranks, or selection counts."
+  },
+  "pages": {
+    "heroBody": "IELTS and PTE if you are leaving. JEE or NEET foundation if you are in class 11 or 12. Punjab board tuition if the school exam is the one that matters this year. Spoken English if you want the words to come out. Fees are on the page.",
+    "illustrationNote": "Illustrated on purpose, instead of a stock photograph.",
+    "coursesIntro": "Five courses that actually get asked for on GT Road. Open one for timings, who can join, and what a week looks like.",
+    "feesIntro": "Indicative ranges for Phagwara. Monthly classes sit between ₹1,500 and ₹5,800. IELTS and PTE is a package, not a monthly bill. A real centre confirms the figure at the desk before you pay. This page does not take payment."
+  },
+  "counsellor": {
+    "subtitle": {
+      "en": "I record a trial class request. The centre confirms the booking.",
+      "hi": "मैं ट्रायल क्लास का अनुरोध दर्ज करती हूँ। बुकिंग सेंटर पक्की करता है।",
+      "pa": "ਮੈਂ ਟਰਾਇਲ ਕਲਾਸ ਦੀ ਬੇਨਤੀ ਦਰਜ ਕਰਦੀ ਹਾਂ। ਬੁਕਿੰਗ ਸੈਂਟਰ ਪੱਕੀ ਕਰਦਾ ਹੈ।"
+    },
+    "greeting": {
+      "en": [
+        "Hello. I’m the counsellor at Udaan Academy on GT Road in Phagwara",
+        "Tell me the aim — Canada, NEET, JEE, the Punjab board, or spoken English — and I’ll match a course, a batch, and the fee"
+      ],
+      "hi": [
+        "नमस्ते",
+        "मैं उड़ान अकादमी की काउंसलर हूँ, जीटी रोड, फगवाड़ा",
+        "कनाडा, नीट, जेईई, पंजाब बोर्ड या अंग्रेज़ी बोलना — जो लक्ष्य हो, बता दीजिए",
+        "मैं कोर्स, बैच और फीस बता देती हूँ"
+      ],
+      "pa": [
+        "ਸਤ ਸ੍ਰੀ ਅਕਾਲ",
+        "ਮੈਂ ਉਡਾਣ ਅਕਾਦਮੀ ਦੀ ਕਾਉਂਸਲਰ ਹਾਂ, ਜੀਟੀ ਰੋਡ, ਫਗਵਾੜਾ",
+        "ਕੈਨੇਡਾ, ਨੀਟ, ਜੇਈਈ, ਪੰਜਾਬ ਬੋਰਡ ਜਾਂ ਅੰਗਰੇਜ਼ੀ ਬੋਲਣੀ — ਜੋ ਟੀਚਾ ਹੋਵੇ, ਦੱਸੋ",
+        "ਮੈਂ ਕੋਰਸ, ਬੈਚ ਅਤੇ ਫੀਸ ਦੱਸ ਦਿਆਂਗੀ"
+      ]
+    },
+    "ask": {
+      "en": {
+        "name": "What name should I put on the free trial class?",
+        "phone": "What phone number should the centre use? Ten digits, starting 6, 7, 8, or 9.",
+        "course": "Which course — IELTS and PTE, JEE Foundation, NEET Foundation, Punjab Board, or Spoken English?",
+        "batch": "Which batch — morning, evening, or weekend?",
+        "date": "Which date works? You can say 20 November, or a date like 2026-11-20."
+      },
+      "hi": {
+        "name": "फ्री ट्रायल क्लास पर कौन सा नाम लिखूँ?",
+        "phone": "अपना फोन नंबर लिख दीजिए, दस अंक, 6, 7, 8 या 9 से शुरू?",
+        "course": "कौन सा कोर्स चाहिए — IELTS और PTE, JEE, NEET, पंजाब बोर्ड, या स्पोकन इंग्लिश?",
+        "batch": "कौन सा बैच ठीक रहेगा — सुबह, शाम या वीकेंड?",
+        "date": "कौन सी तारीख ठीक रहेगी? 20 नवंबर या 20/11/2026 लिखिए।"
+      },
+      "pa": {
+        "name": "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਉੱਤੇ ਕਿਹੜਾ ਨਾਮ ਲਿਖਾਂ?",
+        "phone": "ਆਪਣਾ ਫੋਨ ਨੰਬਰ ਲਿਖੋ, ਦਸ ਅੰਕ, 6, 7, 8 ਜਾਂ 9 ਤੋਂ ਸ਼ੁਰੂ?",
+        "course": "ਕਿਹੜਾ ਕੋਰਸ ਚਾਹੀਦਾ — IELTS ਅਤੇ PTE, JEE, NEET, ਪੰਜਾਬ ਬੋਰਡ, ਜਾਂ ਸਪੋਕਨ ਇੰਗਲਿਸ਼?",
+        "batch": "ਕਿਹੜਾ ਬੈਚ ਠੀਕ ਰਹੇਗਾ — ਸਵੇਰ, ਸ਼ਾਮ ਜਾਂ ਵੀਕਐਂਡ?",
+        "date": "ਕਿਹੜੀ ਤਾਰੀਖ ਠੀਕ ਰਹੇਗੀ? 20 ਨਵੰਬਰ ਜਾਂ 20/11/2026 ਲਿਖੋ।"
+      }
+    },
+    "dateMiss": {
+      "en": "I couldn’t read that date. Try 20 November or 20/11/2026.",
+      "hi": "यह तारीख समझ नहीं आई। 20 नवंबर या 20/11/2026 लिखिए।",
+      "pa": "ਇਹ ਤਾਰੀਖ ਸਮਝ ਨਹੀਂ ਆਈ। 20 ਨਵੰਬਰ ਜਾਂ 20/11/2026 ਲਿਖੋ।"
+    },
+    "confirmAsk": {
+      "en": "Shall I send this? (yes / no)",
+      "hi": "भेज दूँ? (हाँ / नहीं)",
+      "pa": "ਭੇਜ ਦਿਆਂ? (ਹਾਂ / ਨਹੀਂ)"
+    },
+    "changeField": {
+      "en": "Which part should I change — name, phone, course, batch, or date?",
+      "hi": "क्या बदलना है — नाम, फोन, कोर्स, बैच या तारीख?",
+      "pa": "ਕੀ ਬਦਲਣਾ ਹੈ — ਨਾਮ, ਫੋਨ, ਕੋਰਸ, ਬੈਚ ਜਾਂ ਤਾਰੀਖ?"
+    },
+    "offTopic": {
+      "en": [
+        "That’s outside what I can help with",
+        "I cover courses, batches, fees, and a free trial class at Udaan Academy",
+        "Tell me what you want to study"
+      ],
+      "hi": [
+        "यह सवाल कोचिंग का नहीं है",
+        "मैं कोर्स, बैच, फीस और फ्री ट्रायल क्लास में मदद कर सकती हूँ",
+        "बताइए, क्या पढ़ना है?"
+      ],
+      "pa": [
+        "ਇਹ ਸਵਾਲ ਕੋਚਿੰਗ ਦਾ ਨਹੀਂ ਹੈ",
+        "ਮੈਂ ਕੋਰਸ, ਬੈਚ, ਫੀਸ ਅਤੇ ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਵਿੱਚ ਮਦਦ ਕਰ ਸਕਦੀ ਹਾਂ",
+        "ਦੱਸੋ, ਕੀ ਪੜ੍ਹਨਾ ਹੈ?"
+      ]
+    },
+    "unknown": {
+      "en": [
+        "I can help with IELTS, JEE, NEET, the Punjab board, or spoken English",
+        "Tell me the goal, or ask about fees, batches, or a free trial class"
+      ],
+      "hi": [
+        "मैं IELTS, JEE, NEET, पंजाब बोर्ड या स्पोकन इंग्लिश में मदद कर सकती हूँ",
+        "लक्ष्य बता दीजिए, या फीस, बैच या फ्री ट्रायल क्लास पूछ लीजिए"
+      ],
+      "pa": [
+        "ਮੈਂ IELTS, JEE, NEET, ਪੰਜਾਬ ਬੋਰਡ ਜਾਂ ਸਪੋਕਨ ਇੰਗਲਿਸ਼ ਵਿੱਚ ਮਦਦ ਕਰ ਸਕਦੀ ਹਾਂ",
+        "ਟੀਚਾ ਦੱਸੋ, ਜਾਂ ਫੀਸ, ਬੈਚ ਜਾਂ ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਪੁੱਛ ਲਵੋ"
+      ]
+    },
+    "multiCourse": {
+      "en": "These courses fit: {names}. Which one should I open?",
+      "hi": "ये कोर्स ठीक रहेंगे: {names}। कौन सा देखना है?",
+      "pa": "ਇਹ ਕੋਰਸ ਠੀਕ ਰਹਿਣਗੇ: {names}। ਕਿਹੜਾ ਦੇਖਣਾ ਹੈ?"
+    },
+    "admission": {
+      "en": "Most students sit a free trial class first; the fee is paid at the centre. A trial is not required. This site does not take payment.",
+      "hi": "ज्यादातर छात्र पहले फ्री ट्रायल क्लास में बैठते हैं; फीस सेंटर पर दी जाती है। ट्रायल जरूरी नहीं है। इस साइट पर पेमेंट नहीं होता।",
+      "pa": "ਜ਼ਿਆਦਾਤਰ ਵਿਦਿਆਰਥੀ ਪਹਿਲਾਂ ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਵਿੱਚ ਬੈਠਦੇ ਹਨ; ਫੀਸ ਸੈਂਟਰ ਉੱਤੇ ਦਿੱਤੀ ਜਾਂਦੀ ਹੈ। ਟਰਾਇਲ ਜ਼ਰੂਰੀ ਨਹੀਂ। ਇਸ ਸਾਈਟ ਉੱਤੇ ਪੇਮੈਂਟ ਨਹੀਂ ਹੁੰਦਾ।"
+    },
+    "admissionOverview": {
+      "en": "Monthly fees start at ₹1,500, and the IELTS package is ₹8,000–₹12,000.",
+      "hi": "महीने की फीस ₹1,500 से शुरू होती है, और IELTS का पैकेज ₹8,000 से ₹12,000 है।",
+      "pa": "ਮਹੀਨੇ ਦੀ ਫੀਸ ₹1,500 ਤੋਂ ਸ਼ੁਰੂ ਹੁੰਦੀ ਹੈ, ਅਤੇ IELTS ਦਾ ਪੈਕੇਜ ₹8,000 ਤੋਂ ₹12,000 ਹੈ।"
+    },
+    "admissionOffer": {
+      "en": "Say if you want to book a free trial class.",
+      "hi": "फ्री ट्रायल क्लास बुक करनी हो तो कह दीजिए।",
+      "pa": "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਬੁੱਕ ਕਰਨੀ ਹੋਵੇ ਤਾਂ ਕਹਿ ਦਿਓ।"
+    }
+  }
+}
