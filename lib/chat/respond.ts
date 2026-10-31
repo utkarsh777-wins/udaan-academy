@@ -13,13 +13,18 @@ import hindiContent from "@/content/academy.hi.json";
 import punjabiContent from "@/content/academy.pa.json";
 import {
   classYear,
+  explicitConfirmation,
+  explicitMetaOnly,
   explicitName,
+  fold,
   includesTerm,
   isBookingCommand,
   isDurationQuestion,
   isOnlineQuestion,
   isPersonName,
+  isQuestionForm,
   isStaffQuestion,
+  isTrialContentQuestion,
   isTrialInfoQuestion,
   parseUtterance,
   questionAboutTrialEligibility,
@@ -30,6 +35,7 @@ import {
 export type Draft = {
   active?: boolean;
   confirming?: boolean;
+  pendingName?: string;
   name?: string;
   phone?: string;
   email?: string;
@@ -69,27 +75,38 @@ export function counsel(options: {
     };
   }
 
-  if (hasStarted(incoming) && !isBookingCommand(options.text)) {
-    const info = sideQuestion(options.text, parsed, language);
-    if (info) {
-      const stated = explicitName(options.text);
-      const draft = stated ? { ...incoming, name: stated } : incoming;
-      if (incoming.confirming) {
-        return {
-          reply: `${info} ${academy.counsellor.confirmAsk[language]}`,
-          draft: { ...draft, confirming: true, active: true },
-          ready: false,
-          intent: "book",
-        };
-      }
-      const pending = firstMissing(draft);
+  if (incoming.pendingName) {
+    const accept = isAffirmative(options.text) && !isHedged(options.text) && !isReadyToSend(options.text);
+    const next: Draft = { ...incoming, pendingName: undefined };
+    if (accept) next.name = incoming.pendingName;
+    return resumeDraft(next, language);
+  }
+
+  if (hasStarted(incoming) && explicitMetaOnly(options.text) && !explicitName(options.text)) {
+    if (incoming.confirming && explicitConfirmation(options.text)) {
       return {
-        reply: pending ? `${info} ${askFor(pending, language)}` : info,
-        draft,
-        ready: false,
+        reply: speak(language, holding(language)),
+        draft: { ...incoming, confirming: false, active: true, pendingName: undefined },
+        ready: true,
         intent: "book",
       };
     }
+    return resumeDraft({ ...incoming, pendingName: undefined }, language);
+  }
+
+  const stated = explicitName(options.text);
+  if (stated && incoming.name && fold(stated) !== fold(incoming.name)) {
+    const info = isSubstantiveQuestion(options.text) ? spokenAnswer(parsed, options.text, language) : sideQuestion(options.text, parsed, language);
+    return askRename(incoming, stated, language, info);
+  }
+
+  if (hasStarted(incoming) && isSubstantiveQuestion(options.text)) {
+    return answerBesideDraft(incoming, stated, parsed, options.text, language);
+  }
+
+  if (hasStarted(incoming) && !isBookingCommand(options.text)) {
+    const info = sideQuestion(options.text, parsed, language);
+    if (info) return answerBesideDraft(incoming, stated, parsed, options.text, language, info);
   }
 
   if (
@@ -147,7 +164,7 @@ export function counsel(options: {
       reply: answer(parsed, options.text, language),
       draft: incoming,
       ready: false,
-      intent: parsed.intent,
+      intent: isTrialContentQuestion(options.text) ? "eligibility" : parsed.intent,
     };
   }
 
@@ -207,6 +224,7 @@ export function counsel(options: {
 }
 
 function answer(parsed: ParseResult, text: string, language: Language): string {
+  if (isTrialContentQuestion(text)) return trialContentReply(parsed, language);
   if (isStaffQuestion(text)) return facultyAnswer(parsed, language);
   if (isOnlineQuestion(text)) return trialOnlineReply(language);
   if (isDurationQuestion(text) && (includesTerm(text, "trial") || text.includes("ट्रायल") || text.includes("ਟਰਾਇਲ"))) {
@@ -296,6 +314,22 @@ const CANCEL_TOKENS = new Set(
 
 const CANCEL_FILLERS = new Set(["please", "plz", "ji", "जी", "ਜੀ", "the", "my"].map((word) => word.normalize("NFC").toLowerCase()));
 
+function matchesCancel(source: string): boolean {
+  const helpers = new Set(
+    ["karo", "kar", "do", "करो", "कर", "दो", "दीजिए", "ਕਰੋ", "ਕਰ", "ਦਿਓ"].map((word) => word.normalize("NFC").toLowerCase()),
+  );
+  const soft = new Set(["just", "ok", "okay"]);
+  const raw = source.split(/\s+/).filter(Boolean);
+  if (raw.length > 0 && raw.length <= 6 && CANCEL_PHRASES.includes(raw.join(" "))) return true;
+  const withoutHelpers = raw.filter((word) => !helpers.has(word) && !CANCEL_FILLERS.has(word));
+  const meaningful = withoutHelpers.some((word) => CANCEL_TOKENS.has(word))
+    ? withoutHelpers.filter((word) => !soft.has(word))
+    : withoutHelpers;
+  if (meaningful.length === 0 || meaningful.length > 4) return false;
+  if (CANCEL_PHRASES.includes(meaningful.join(" "))) return true;
+  return meaningful.every((word) => CANCEL_TOKENS.has(word));
+}
+
 function isCancel(text: string): boolean {
   if (/[?？]/.test(text)) return false;
   const cleaned = text
@@ -309,22 +343,22 @@ function isCancel(text: string): boolean {
   if (includesTerm(cleaned, "what") || includesTerm(cleaned, "which") || includesTerm(cleaned, "kya") || cleaned.includes("क्या") || cleaned.includes("ਕੀ")) {
     return false;
   }
-  if (["don't", "dont", "do not", "no need", "not", "mat", "मत", "नहीं", "nahi", "ਨਾ", "ਨਹੀਂ"].some((word) => includesTerm(cleaned, word))) {
+  if (["don't", "dont", "do not", "no need", "not", "mat", "मत", "नहीं", "ਨਾ", "ਨਹੀਂ"].some((word) => includesTerm(cleaned, word))) {
     return false;
   }
-  const withoutBusStop = folded.replace(/\bbus stop\b/g, " ");
-  const stripped = withoutBusStop
-    .replace(/^(?:please|i want to|no)\s+/u, "")
-    .replace(/\b(?:it|this|the booking|my booking|booking|the trial|trial)\b/g, " ")
-    .replace(/बुकिंग/g, " ")
+  const withoutBusStop = folded.replace(/\bbus stop\b/g, " ").replace(/\s+/g, " ").trim();
+  const lead = withoutBusStop
+    .replace(/^(?:please|i would like to|i want to|no|nahi|nahin)\s+/u, "")
     .replace(/\s+/g, " ")
     .trim();
-  const helpers = new Set(["karo", "kar", "do", "करो", "कर", "दो", "दीजिए", "ਕਰੋ", "ਕਰ", "ਦਿਓ"].map((word) => word.normalize("NFC").toLowerCase()));
-  const words = stripped.split(/\s+/).filter((word) => word && !CANCEL_FILLERS.has(word) && !helpers.has(word));
-  if (words.length === 0 || words.length > 4) return false;
-  const phrase = words.join(" ");
-  if (CANCEL_PHRASES.includes(phrase)) return true;
-  return words.every((word) => CANCEL_TOKENS.has(word));
+  if (includesTerm(lead, "nahi") || includesTerm(lead, "nahin")) return false;
+  if (matchesCancel(lead)) return true;
+  const stripped = lead
+    .replace(/\b(?:it|this|the booking|my booking|booking|the trial|trial|the request|request)\b/g, " ")
+    .replace(/बुकिंग|ਬੁਕਿੰਗ/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return matchesCancel(stripped);
 }
 
 function isReadyToSend(text: string): boolean {
@@ -341,6 +375,79 @@ function sideQuestion(text: string, parsed: ParseResult, language: Language): st
     return answer(parsed, text, language);
   }
   return null;
+}
+
+function isSubstantiveQuestion(text: string): boolean {
+  if (!isQuestionForm(text)) return false;
+  const stripped = text.normalize("NFC").replace(/[?？!।.,]+/g, "").replace(/\s+/g, " ").trim();
+  if (!stripped || isAffirmative(stripped) || isReadyToSend(stripped)) return false;
+  if (/^(?:maybe|perhaps|probably|not sure|i think so|शायद|ਸ਼ਾਇਦ)$/iu.test(stripped)) return false;
+  return true;
+}
+
+function spokenAnswer(parsed: ParseResult, text: string, language: Language): string {
+  if (parsed.intent === "admission") return admissionAnswer(parsed, language);
+  if (parsed.intent === "eligibility") {
+    return questionAboutTrialEligibility(text) || isTrialInfoQuestion(text)
+      ? trialFreeReply(language, text)
+      : eligibilityAnswer(parsed, language);
+  }
+  if (parsed.intent === "status") return statusAnswer(language);
+  return answer(parsed, text, language);
+}
+
+function answerBesideDraft(
+  incoming: Draft,
+  stated: string | null,
+  parsed: ParseResult,
+  text: string,
+  language: Language,
+  info?: string | null,
+): CounselResult {
+  const draft = stated && !incoming.name ? { ...incoming, name: stated } : incoming;
+  const body = info || spokenAnswer(parsed, text, language);
+  const missing = firstMissing(draft);
+  const follow = incoming.confirming ? academy.counsellor.confirmAsk[language] : missing ? askFor(missing, language) : null;
+  return {
+    reply: [body, follow].filter(Boolean).join(" "),
+    draft: { ...draft, active: true, confirming: Boolean(incoming.confirming), pendingName: undefined },
+    ready: false,
+    intent: "book",
+  };
+}
+
+function askRename(draft: Draft, name: string, language: Language, preface?: string | null): CounselResult {
+  const question =
+    language === "hi"
+      ? `नाम बदल कर '${name}' कर दूँ?`
+      : language === "pa"
+        ? `ਨਾਮ ਬਦਲ ਕੇ '${name}' ਕਰ ਦਿਆਂ?`
+        : `Change the name to '${name}'?`;
+  return {
+    reply: [preface, question].filter(Boolean).join(" "),
+    draft: { ...draft, pendingName: name, active: true },
+    ready: false,
+    intent: "book",
+  };
+}
+
+function resumeDraft(draft: Draft, language: Language): CounselResult {
+  const next: Draft = { ...draft, pendingName: undefined };
+  const missing = firstMissing(next);
+  if (!missing) {
+    return {
+      reply: summaryReply(next, language),
+      draft: { ...next, confirming: true, active: true },
+      ready: false,
+      intent: "book",
+    };
+  }
+  return {
+    reply: askFor(missing, language),
+    draft: { ...next, confirming: false, active: true },
+    ready: false,
+    intent: "book",
+  };
 }
 
 function isHedged(text: string): boolean {
@@ -402,6 +509,24 @@ function trialOnlineReply(language: Language): string {
   if (language === "hi") return speak("hi", ["ट्रायल क्लास जीटी रोड, फगवाड़ा की क्लास में होती है", "ऑनलाइन नहीं"]);
   if (language === "pa") return speak("pa", ["ਟਰਾਇਲ ਕਲਾਸ ਜੀਟੀ ਰੋਡ, ਫਗਵਾੜਾ ਦੀ ਕਲਾਸ ਵਿੱਚ ਹੁੰਦੀ ਹੈ", "ਔਨਲਾਈਨ ਨਹੀਂ"]);
   return speak("en", ["The trial class is in the classroom on GT Road in Phagwara", "It is not online"]);
+}
+
+function trialContentReply(parsed: ParseResult, language: Language): string {
+  const courses = parsed.courses.length
+    ? academy.courses.filter((course) => parsed.courses.includes(course.slug))
+    : academy.courses;
+  const lines = courses.map((course) => {
+    const hindi = hindiContent.courses[course.slug as keyof typeof hindiContent.courses];
+    const includes = language === "hi" && hindi?.includes?.length ? hindi.includes : course.includes;
+    return `${shownCourse(course, language)}: ${includes.join(", ")}`;
+  });
+  const intro =
+    language === "hi"
+      ? "ट्रायल उस बैच की एक फ्री क्लास है, पूरा कोर्स नहीं। क्लास में ये होता है"
+      : language === "pa"
+        ? "ਟਰਾਇਲ ਉਸ ਬੈਚ ਦੀ ਇੱਕ ਫ੍ਰੀ ਕਲਾਸ ਹੈ, ਪੂਰਾ ਕੋਰਸ ਨਹੀਂ। ਕਲਾਸ ਵਿੱਚ ਇਹ ਹੁੰਦਾ ਹੈ"
+        : "A trial is one free class of that batch, not the full course. The class covers";
+  return speak(language, [intro, ...lines]);
 }
 
 function trialFreeReply(language: Language, text: string): string {
@@ -575,15 +700,62 @@ function windowHint(language: Language): string {
   return "Pick a date from today through the next 45 days.";
 }
 
+function runsTodayEnded(course: Course, date: string, now: Date): boolean {
+  const running = course.batches.filter((batch) => batch.weekdays.includes(weekdayIndex(date)));
+  return running.length > 0 && running.every((batch) => batchHasEnded(batch.time, date, now));
+}
+
+function nextLiveSlot(course: Course, from: string, latest: string, now: Date): { date: string; id: BatchId } | null {
+  for (let offset = 1; offset <= 46; offset += 1) {
+    const cursor = addISODays(from, offset);
+    if (cursor > latest) return null;
+    for (const batch of course.batches) {
+      if (!batch.weekdays.includes(weekdayIndex(cursor))) continue;
+      if (batchHasEnded(batch.time, cursor, now)) continue;
+      return { date: cursor, id: batch.id as BatchId };
+    }
+  }
+  return null;
+}
+
+function allFinishedHint(course: Course, language: Language, now: Date): string {
+  const today = todayISO(now);
+  const latest = addISODays(today, 45);
+  const next = nextLiveSlot(course, today, latest, now);
+  const name = shownCourse(course, language);
+  const when = next ? formatLongDate(next.date, language) : "";
+  const label = next ? batchLabel(next.id, language) : "";
+  if (language === "hi") {
+    return next
+      ? `आज ${name} के सारे बैच खत्म हो चुके हैं। अगला ${label} बैच ${when} को है। वही ले लीजिए, या कोई और कोर्स चुनिए।`
+      : `आज ${name} के सारे बैच खत्म हो चुके हैं। कोई और दिन या कोई और कोर्स चुनिए।`;
+  }
+  if (language === "pa") {
+    return next
+      ? `ਅੱਜ ${name} ਦੇ ਸਾਰੇ ਬੈਚ ਖਤਮ ਹੋ ਚੁੱਕੇ ਹਨ। ਅਗਲਾ ${label} ਬੈਚ ${when} ਨੂੰ ਹੈ। ਉਹ ਲੈ ਲਵੋ, ਜਾਂ ਕੋਈ ਹੋਰ ਕੋਰਸ ਚੁਣੋ।`
+      : `ਅੱਜ ${name} ਦੇ ਸਾਰੇ ਬੈਚ ਖਤਮ ਹੋ ਚੁੱਕੇ ਹਨ। ਕੋਈ ਹੋਰ ਦਿਨ ਜਾਂ ਕੋਈ ਹੋਰ ਕੋਰਸ ਚੁਣੋ।`;
+  }
+  return next
+    ? `Every ${name} batch has already finished today. The next one is the ${label} batch on ${when}. You can take that, or pick another course.`
+    : `Every ${name} batch has already finished today. Pick another day, or another course.`;
+}
+
 function applyWeekday(draft: Draft, language: Language, now: Date): { draft: Draft; hint: string | null } {
-  if (!draft.date || !draft.course || !draft.batch) return { draft, hint: null };
+  if (!draft.date || !draft.course) return { draft, hint: null };
   const today = todayISO(now);
   const latest = addISODays(today, 45);
   if (draft.date < today || draft.date > latest) {
     return { draft: { ...draft, date: undefined }, hint: windowHint(language) };
   }
   const course = getCourse(draft.course);
-  const batch = course?.batches.find((item) => item.id === draft.batch);
+  if (!course) return { draft, hint: null };
+  if (!draft.batch) {
+    if (draft.date === today && runsTodayEnded(course, draft.date, now)) {
+      return { draft: { ...draft, date: undefined }, hint: allFinishedHint(course, language, now) };
+    }
+    return { draft, hint: null };
+  }
+  const batch = course.batches.find((item) => item.id === draft.batch);
   if (batch && batchHasEnded(batch.time, draft.date, now)) {
     const hint =
       language === "hi"
@@ -622,7 +794,7 @@ function summaryReply(draft: Draft, language: Language): string {
 function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
   const next: Draft = { ...draft, confirming: false };
   const pending = firstMissing(next);
-  if (parsed.nameExplicit && parsed.name) next.name = parsed.name;
+  if (parsed.nameExplicit && parsed.name && !next.name) next.name = parsed.name;
   else if (!next.name && parsed.name) next.name = parsed.name;
   else if (!next.name && pending === "name" && parsed.intent !== "book" && isPersonName(stripPunctuation(text))) {
     next.name = stripPunctuation(text);
@@ -650,7 +822,7 @@ function hasStarted(draft: Draft): boolean {
   );
 }
 
-function firstMissing(draft: Draft): keyof Draft | null {
+function firstMissing(draft: Draft): "name" | "phone" | "course" | "batch" | "date" | null {
   if (!draft.name) return "name";
   if (!draft.phone) return "phone";
   if (!draft.course) return "course";
@@ -659,9 +831,8 @@ function firstMissing(draft: Draft): keyof Draft | null {
   return null;
 }
 
-function askFor(field: keyof Draft, language: Language): string {
-  const slot = field === "email" || field === "active" || field === "confirming" ? "name" : field;
-  const line = academy.counsellor.ask[language][slot] ?? academy.counsellor.ask.en.name;
+function askFor(field: "name" | "phone" | "course" | "batch" | "date", language: Language): string {
+  const line = academy.counsellor.ask[language][field] ?? academy.counsellor.ask.en.name;
   return language === "en" ? line : speak(language, [line]);
 }
 
@@ -945,9 +1116,14 @@ export function formatBatchTime(time: string, language: Language): string {
 }
 
 function timeIn(language: Language, time: string): string {
-  if (language === "en") return time;
   const range = parseClockRange(time);
   if (!range) return time;
+  if (language === "en") {
+    const start = enPart(range.start);
+    const end = enPart(range.end);
+    if (start.period === end.period) return `${start.clock} to ${end.clock} in the ${start.period}`;
+    return `${start.clock} in the ${start.period} to ${end.clock} in the ${end.period}`;
+  }
   const start = clockPart(language, range.start);
   const end = clockPart(language, range.end);
   const startPeriod = start.slice(0, start.indexOf(" "));
@@ -977,6 +1153,13 @@ function parseClockRange(time: string): {
     start: { hour: Number(split[1]), minute: Number(split[2]), meridiem: split[3].toLowerCase() as "am" | "pm" },
     end: { hour: Number(split[4]), minute: Number(split[5]), meridiem: split[6].toLowerCase() as "am" | "pm" },
   };
+}
+
+function enPart(part: { hour: number; minute: number; meridiem: "am" | "pm" }): { clock: string; period: string } {
+  const hour24 = part.meridiem === "pm" && part.hour < 12 ? part.hour + 12 : part.meridiem === "am" && part.hour === 12 ? 0 : part.hour;
+  const clock = `${part.hour}:${String(part.minute).padStart(2, "0")}`;
+  const period = hour24 < 12 ? "morning" : hour24 < 17 ? "afternoon" : "evening";
+  return { clock, period };
 }
 
 function clockPart(

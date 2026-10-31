@@ -562,7 +562,15 @@ describe("blocker regressions", () => {
       ["mera naam Simran hai", "Simran"],
     ];
     for (const [text, expected] of phrases) {
-      expect(counsel({ text, language: "en", draft, now }).draft.name, text).toBe(expected);
+      const result = counsel({ text, language: "en", draft, now });
+      if (expected === "Simran") {
+        expect(result.draft.name, text).toBe("Simran");
+        expect(result.draft.pendingName, text).toBeUndefined();
+      } else {
+        expect(result.draft.name, text).toBe("Simran");
+        expect(result.draft.pendingName, text).toBe(expected);
+        expect(result.ready, text).toBe(false);
+      }
     }
     expect(counsel({ text: "Simran, 9876543210", language: "en", draft, now }).draft.name).toBe("Simran");
     const phone = "9876543210";
@@ -604,10 +612,18 @@ describe("blocker regressions", () => {
     }
     expect(counsel({ text: "I am Aman", language: "en", draft: { active: true }, now }).draft.name).toBe("Aman");
     expect(counsel({ text: "I am Aman", language: "en", draft: simran, now }).draft.name).toBe("Simran");
-    expect(counsel({ text: "name: Papa Singh", language: "en", draft: simran, now }).draft.name).toBe("Papa Singh");
+    expect(counsel({ text: "name: Papa Singh", language: "en", draft: { active: true }, now }).draft.name).toBe("Papa Singh");
     expect(counsel({ text: "Bhai Mardana Singh", language: "en", draft: { active: true }, now }).draft.name).toBe("Bhai Mardana Singh");
-    expect(counsel({ text: "the name is Karan", language: "en", draft: simran, now }).draft.name).toBe("Karan");
-    expect(counsel({ text: "change the name to Jitesh", language: "en", draft: simran, now }).draft.name).toBe("Jitesh");
+    for (const [text, expected] of [
+      ["name: Papa Singh", "Papa Singh"],
+      ["the name is Karan", "Karan"],
+      ["change the name to Jitesh", "Jitesh"],
+    ] as const) {
+      const renamed = counsel({ text, language: "en", draft: simran, now });
+      expect(renamed.draft.name, text).toBe("Simran");
+      expect(renamed.draft.pendingName, text).toBe(expected);
+      expect(renamed.ready, text).toBe(false);
+    }
     for (const text of ["uncle", "aunty", "नाना जी", "नानी", "दादा जी", "ਮਾਤਾ ਜੀ", "ਪਿਤਾ ਜੀ", "thanku", "thanku ji"]) {
       expect(counsel({ text, language: "en", draft: { active: true }, now }).draft.name, text).toBeUndefined();
     }
@@ -706,10 +722,17 @@ describe("blocker regressions", () => {
       expect(counsel({ text, language: "pa", draft: midway, now }).draft.name, text).toBe("Simran");
     }
     for (const draft of [confirming, midway]) {
-      expect(counsel({ text: "the name is spelled Simran Kaur", language: "en", draft, now }).draft.name).toBe("Simran Kaur");
-      expect(counsel({ text: "my name is Simran Kaur only", language: "en", draft, now }).draft.name).toBe("Simran Kaur");
-      expect(counsel({ text: "मेरा नाम सिमरन ही है", language: "hi", draft, now }).draft.name).toBe("सिमरन");
-      expect(counsel({ text: "ਮੇਰਾ ਨਾਂ ਸਿਮਰਨ ਹੀ ਹੈ", language: "pa", draft, now }).draft.name).toBe("ਸਿਮਰਨ");
+      for (const [text, expected] of [
+        ["the name is spelled Simran Kaur", "Simran Kaur"],
+        ["my name is Simran Kaur only", "Simran Kaur"],
+        ["मेरा नाम सिमरन ही है", "सिमरन"],
+        ["ਮੇਰਾ ਨਾਂ ਸਿਮਰਨ ਹੀ ਹੈ", "ਸਿਮਰਨ"],
+      ] as const) {
+        const renamed = counsel({ text, language: "en", draft, now });
+        expect(renamed.draft.name, text).toBe("Simran");
+        expect(renamed.draft.pendingName, text).toBe(expected);
+        expect(renamed.ready, text).toBe(false);
+      }
     }
   });
 
@@ -760,5 +783,222 @@ describe("blocker regressions", () => {
     expect(formatBatchTime("5:00–7:00 pm", "pa")).not.toMatch(/\bpm\b/i);
     expect(formatBatchTime("7:00–9:00 am", "hi")).toContain("सुबह");
     expect(formatBatchTime("5:00–7:00 pm", "pa")).toContain("ਵਜੇ");
+  });
+
+  it("R12 confirms a different name before replacing it and ignores meta-only captures", () => {
+    const confirming = {
+      active: true,
+      confirming: true,
+      name: "Simran",
+      phone: "9876543210",
+      course: "ielts-pte",
+      batch: "morning" as const,
+      date: "2026-11-20",
+    };
+    const midway = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const };
+    const meta = [
+      "the name is correct",
+      "the name is correct now",
+      "the name is spelled correctly",
+      "the name is correct spelling",
+      "the name is all correct",
+      "the name is absolutely correct",
+      "the name is exactly right",
+      "my name is already there",
+    ];
+    for (const text of meta) {
+      expect(parseUtterance(text, now).name, text).toBeNull();
+      const atConfirm = counsel({ text, language: "en", draft: confirming, now });
+      expect(atConfirm.draft.name, text).toBe("Simran");
+      expect(atConfirm.draft.pendingName, text).toBeUndefined();
+      expect(atConfirm.ready, text).toBe(true);
+      expect(atConfirm.reply.toLowerCase(), text).not.toContain("which part");
+      expect(atConfirm.reply, text).not.toContain("Shall I send");
+      const during = counsel({ text, language: "en", draft: midway, now });
+      expect(during.draft.name, text).toBe("Simran");
+      expect(during.draft.pendingName, text).toBeUndefined();
+      expect(during.draft.course, text).toBe("ielts-pte");
+      expect(during.draft.date, text).toBeUndefined();
+      expect(during.ready, text).toBe(false);
+      expect(during.reply.toLowerCase(), text).toContain("date");
+      expect(during.reply, text).not.toMatch(/couldn.t read that date/i);
+    }
+
+    const empty = { active: true };
+    const legit: Array<[string, string]> = [
+      ["my name is Simran Kaur", "Simran Kaur"],
+      ["मेरा नाम सिमरन कौर है", "सिमरन कौर"],
+      ["ਮੇਰਾ ਨਾਂ ਸਿਮਰਨ ਕੌਰ ਹੈ", "ਸਿਮਰਨ ਕੌਰ"],
+      ["my name is Simran Kaur only", "Simran Kaur"],
+      ["spelled Simran Kaur", "Simran Kaur"],
+      ["Simran Stopford", "Simran Stopford"],
+      ["the name is Jitesh", "Jitesh"],
+      ["the name is Karan", "Karan"],
+      ["name: Papa Singh", "Papa Singh"],
+      ["name: Bhai Mardana Singh", "Bhai Mardana Singh"],
+      ["name: Sameer", "Sameer"],
+      ["name: Mina", "Mina"],
+      ["name: Wright", "Wright"],
+      ["name: Sahi Ram", "Sahi Ram"],
+      ["name: सही राम", "सही राम"],
+      ["name: Perfecto Singh", "Perfecto Singh"],
+      ["name: ਸਹਿਜ", "ਸਹਿਜ"],
+      ["name: Fine Singh", "Fine Singh"],
+      ["name: Okay Kumar", "Okay Kumar"],
+      ["name: Mona Wrong", "Mona Wrong"],
+      ["name: Kya Singh", "Kya Singh"],
+    ];
+    for (const [text, expected] of legit) {
+      expect(counsel({ text, language: "en", draft: empty, now }).draft.name, text).toBe(expected);
+    }
+    expect(parseUtterance("my name is Fine Singh", now).name).toBeNull();
+    expect(counsel({ text: "my name is Fine Singh", language: "en", draft: empty, now }).draft.name).toBeUndefined();
+
+    for (const draft of [confirming, midway]) {
+      const pending = counsel({ text: "my name is Simran Kaur", language: "en", draft, now });
+      expect(pending.draft.name).toBe("Simran");
+      expect(pending.draft.pendingName).toBe("Simran Kaur");
+      expect(pending.ready).toBe(false);
+      expect(pending.reply).toContain("Change the name to 'Simran Kaur'?");
+    }
+
+    const asked = counsel({ text: "name: Fine Singh", language: "en", draft: confirming, now });
+    expect(asked.draft.name).toBe("Simran");
+    expect(asked.draft.pendingName).toBe("Fine Singh");
+    expect(asked.ready).toBe(false);
+    const refused = counsel({ text: "no", language: "en", draft: asked.draft, now });
+    expect(refused.draft.name).toBe("Simran");
+    expect(refused.draft.pendingName).toBeUndefined();
+    expect(refused.draft.date).toBe("2026-11-20");
+    expect(refused.ready).toBe(false);
+    expect(refused.draft.confirming).toBe(true);
+
+    const again = counsel({ text: "name: Fine Singh", language: "en", draft: confirming, now });
+    const accepted = counsel({ text: "yes", language: "en", draft: again.draft, now });
+    expect(accepted.draft.name).toBe("Fine Singh");
+    expect(accepted.draft.pendingName).toBeUndefined();
+    expect(accepted.ready).toBe(false);
+    expect(accepted.draft.confirming).toBe(true);
+    expect(counsel({ text: "yes", language: "en", draft: accepted.draft, now }).ready).toBe(true);
+
+    const hindiAsk = counsel({ text: "मेरा नाम अमन है", language: "hi", draft: confirming, now });
+    expect(hindiAsk.reply).toContain("नाम बदल कर 'अमन' कर दूँ?");
+    expect(hindiAsk.ready).toBe(false);
+    const hindiNo = counsel({ text: "नहीं", language: "hi", draft: hindiAsk.draft, now });
+    expect(hindiNo.draft.name).toBe("Simran");
+    expect(hindiNo.draft.pendingName).toBeUndefined();
+    expect(hindiNo.ready).toBe(false);
+    const hindiYes = counsel({ text: "हाँ", language: "hi", draft: hindiAsk.draft, now });
+    expect(hindiYes.draft.name).toBe("अमन");
+    expect(hindiYes.ready).toBe(false);
+    expect(counsel({ text: "हाँ", language: "hi", draft: hindiYes.draft, now }).ready).toBe(true);
+
+    const punjabiAsk = counsel({ text: "ਮੇਰਾ ਨਾਂ ਹਰਮਨ ਹੈ", language: "pa", draft: midway, now });
+    expect(punjabiAsk.reply).toContain("ਨਾਮ ਬਦਲ ਕੇ 'ਹਰਮਨ' ਕਰ ਦਿਆਂ?");
+    expect(punjabiAsk.draft.name).toBe("Simran");
+    expect(punjabiAsk.draft.date).toBeUndefined();
+    const punjabiNo = counsel({ text: "ਨਹੀਂ", language: "pa", draft: punjabiAsk.draft, now });
+    expect(punjabiNo.draft.name).toBe("Simran");
+    expect(punjabiNo.draft.pendingName).toBeUndefined();
+    expect(punjabiNo.draft.batch).toBe("morning");
+    const drifted = counsel({ text: "tomorrow", language: "en", draft: punjabiAsk.draft, now });
+    expect(drifted.draft.name).toBe("Simran");
+    expect(drifted.draft.date).toBeUndefined();
+    expect(drifted.draft.pendingName).toBeUndefined();
+    const punjabiYes = counsel({ text: "ਹਾਂ", language: "pa", draft: punjabiAsk.draft, now });
+    expect(punjabiYes.draft.name).toBe("ਹਰਮਨ");
+    expect(punjabiYes.ready).toBe(false);
+    expect(punjabiYes.reply).toContain("ਤਾਰੀਖ");
+
+    const ready = counsel({ text: "I am ready", language: "en", draft: { ...confirming, pendingName: "Aman" }, now });
+    expect(ready.ready).toBe(false);
+    expect(ready.draft.name).toBe("Simran");
+    expect(ready.draft.pendingName).toBeUndefined();
+  });
+
+  it("R12 leaves an open draft alone for trial questions and answers what the class covers", () => {
+    const pendingDate = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const };
+    const questions = [
+      "Is the NEET trial class on Saturday?",
+      "Does the NEET trial run on Saturday?",
+      "What time is the NEET trial?",
+      "kya is the NEET trial on Saturday",
+      "क्या NEET ट्रायल शनिवार को है?",
+      "ਕੀ NEET ਟਰਾਇਲ ਸ਼ਨੀਵਾਰ ਨੂੰ ਹੈ?",
+      "Book a NEET trial on Saturday?",
+    ];
+    for (const text of questions) {
+      const answer = counsel({ text, language: "en", draft: pendingDate, now });
+      expect(answer.draft.course, text).toBe("ielts-pte");
+      expect(answer.draft.batch, text).toBe("morning");
+      expect(answer.draft.date, text).toBeUndefined();
+      expect(answer.draft.name, text).toBe("Simran");
+      expect(answer.ready, text).toBe(false);
+      expect(answer.reply, text).not.toMatch(/couldn.t read that date|तारीख समझ नहीं|ਤਾਰੀਖ ਸਮਝ ਨਹੀਂ/i);
+      expect(answer.reply, text).not.toMatch(/already finished|खत्म हो चुका है|ਖਤਮ ਹੋ ਚੁੱਕਾ/);
+    }
+
+    const named = counsel({
+      text: "name: Navjot Kaur. Is the trial online?",
+      language: "en",
+      draft: { active: true, course: "ielts-pte" },
+      now,
+    });
+    expect(named.draft.name).toBe("Navjot Kaur");
+    expect(named.draft.course).toBe("ielts-pte");
+    expect(named.draft.date).toBeUndefined();
+    expect(named.reply.toLowerCase()).toContain("not online");
+    expect(named.ready).toBe(false);
+
+    const happens = counsel({ text: "What happens in the trial class?", language: "en", now });
+    expect(happens.reply).toContain("Weekly mock test");
+    expect(happens.reply).toContain("NCERT-first biology hours");
+    expect(happens.reply).not.toMatch(/7:00|morning batch/);
+    expect(happens.draft.active).toBeUndefined();
+    const happensMid = counsel({ text: "What happens in the trial class?", language: "en", draft: pendingDate, now });
+    expect(happensMid.draft.course).toBe("ielts-pte");
+    expect(happensMid.draft.date).toBeUndefined();
+    expect(happensMid.reply).toContain("Weekly mock test");
+    expect(happensMid.reply).not.toMatch(/couldn.t read that date/i);
+
+    const openEvening = counsel({ text: "Book a NEET trial on Saturday", language: "en", now });
+    expect(openEvening.draft.date).toBe("2026-10-31");
+    const late = new Date("2026-10-31T13:00:00.000Z");
+    const ended = counsel({ text: "Book a NEET trial on Saturday", language: "en", now: late });
+    expect(ended.draft.date).toBeUndefined();
+    expect(ended.draft.course).toBe("neet-foundation");
+    expect(ended.reply).toContain("already finished today");
+    expect(ended.reply).toContain(formatLongDate("2026-11-01", "en"));
+    expect(ended.reply.toLowerCase()).toContain("weekend");
+    expect(ended.reply.toLowerCase()).toContain("another course");
+    expect(ended.reply).not.toContain("2026-10-31");
+
+    const tuesdayHi = counsel({ text: "सोमवार को व्यस्त हूँ तो मंगलवार", language: "hi", draft: pendingDate, now });
+    expect(tuesdayHi.draft.date).toBe("2026-11-03");
+    expect(tuesdayHi.draft.course).toBe("ielts-pte");
+    const tuesdayPa = counsel({ text: "ਸੋਮਵਾਰ ਨੂੰ ਵਿਅਸਤ ਹਾਂ ਤਾਂ ਮੰਗਲਵਾਰ", language: "pa", draft: pendingDate, now });
+    expect(tuesdayPa.draft.date).toBe("2026-11-03");
+    expect(tuesdayPa.draft.course).toBe("ielts-pte");
+
+    expect(formatBatchTime("7:00–9:00 am", "en")).toBe("7:00 to 9:00 in the morning");
+    expect(formatBatchTime("7:00–9:00 am", "en")).not.toMatch(/\bam\b/i);
+    expect(formatBatchTime("5:00–7:00 pm", "en")).not.toMatch(/\bpm\b/i);
+    expect(formatBatchTime("9:00 am–1:00 pm", "en")).not.toMatch(/\b(?:am|pm)\b/i);
+
+    const cancelling = { ...pendingDate, date: "2026-11-20", confirming: true };
+    for (const text of [
+      "ਬੁਕਿੰਗ ਰੱਦ ਕਰੋ",
+      "cancel the request",
+      "nahi, cancel",
+      "forget it",
+      "just cancel",
+      "ok cancel",
+      "I would like to cancel",
+    ]) {
+      const endedDraft = counsel({ text, language: "en", draft: cancelling, now });
+      expect(endedDraft.draft.name, text).toBeUndefined();
+      expect(endedDraft.ready, text).toBe(false);
+    }
+    expect(counsel({ text: "I am ready", language: "en", draft: cancelling, now }).ready).toBe(true);
   });
 });

@@ -434,6 +434,7 @@ function extractPhone(text: string): string | null {
 const NAME_META = new Set(
   [
     "correct",
+    "correctly",
     "right",
     "perfect",
     "same",
@@ -442,8 +443,15 @@ const NAME_META = new Set(
     "fine",
     "wrong",
     "misspelled",
+    "spelling",
     "spelt",
     "spelled",
+    "already",
+    "there",
+    "now",
+    "all",
+    "absolutely",
+    "exactly",
     "mine",
     "only",
     "yes",
@@ -474,25 +482,30 @@ function metaName(value: string): boolean {
   return words.length > 0 && words.every((word) => NAME_META.has(fold(word)));
 }
 
+const NAME_PATTERNS: Array<{ pattern: RegExp; allowMixed: boolean }> = [
+  { pattern: /my name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
+  { pattern: /change (?:the )?name to\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
+  { pattern: /the name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
+  { pattern: /^(?:spelled|spelt)\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})$/iu, allowMixed: false },
+  { pattern: /mera naam\s+(.+?)\s+hai\b/iu, allowMixed: false },
+  { pattern: /मेरा नाम(?:\s+है)?\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u, allowMixed: false },
+  { pattern: /^(?:नाम|name)\s*[:：]\s*([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})$/iu, allowMixed: true },
+  { pattern: /ਮੇਰਾ ਨਾਂ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u, allowMixed: false },
+  { pattern: /ਮੇਰਾ ਨਾਮ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u, allowMixed: false },
+  { pattern: /^ਨਾਂ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})\s+ਹੈ$/u, allowMixed: false },
+  { pattern: /^ਨਾਮ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})\s+ਹੈ$/u, allowMixed: false },
+];
+
 export function explicitName(text: string): string | null {
-  const source = text.normalize("NFC").trim();
-  const patterns = [
-    /my name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
-    /change (?:the )?name to\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
-    /the name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
-    /mera naam\s+(.+?)\s+hai\b/iu,
-    /मेरा नाम(?:\s+है)?\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u,
-    /^(?:नाम|name)\s*[:：]\s*([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})$/iu,
-    /ਮੇਰਾ ਨਾਂ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u,
-    /ਮੇਰਾ ਨਾਮ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u,
-    /^ਨਾਂ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})\s+ਹੈ$/u,
-    /^ਨਾਮ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})\s+ਹੈ$/u,
-  ];
-  for (const pattern of patterns) {
-    const match = source.match(pattern);
-    if (!match) continue;
-    const name = cleanName(match[1]);
-    if (name) return name;
+  for (const part of text.split(/[.?!।]+/u)) {
+    const source = part.normalize("NFC").trim();
+    if (!source) continue;
+    for (const { pattern, allowMixed } of NAME_PATTERNS) {
+      const match = source.match(pattern);
+      if (!match) continue;
+      const name = cleanName(match[1] ?? "", allowMixed);
+      if (name) return name;
+    }
   }
   return null;
 }
@@ -529,16 +542,98 @@ function nameBesidePhone(source: string): string | null {
   return cleanName(segment);
 }
 
-function cleanName(value: string): string | null {
+function tidyName(value: string): string {
   const cut = value.split(/[।?!]|\s+(?:and|aur|ਅਤੇ|phone|फोन|ਫੋਨ|,)/i)[0] ?? value;
-  const name = cut
+  return cut
     .replace(/[।.!?]+$/g, "")
     .replace(/^(?:spelled|spelt)\s+/i, "")
     .replace(/(?:\s+(?:है|हैं|हूँ|हूं|जी|hai|ਹੈ|ਹਾਂ|ਜੀ))+$/iu, "")
     .replace(/(?:\s+(?:only|ही|ਹੀ))+$/iu, "")
     .trim();
-  if (!name || metaName(name) || !isPersonName(name)) return null;
+}
+
+function cleanName(value: string, allowMixed = false): string | null {
+  const name = tidyName(value);
+  if (!name) return null;
+  const words = name.split(/\s+/).filter(Boolean);
+  const metas = words.filter((word) => NAME_META.has(fold(word)));
+  if (metas.length === words.length) return null;
+  if (metas.length > 0) {
+    if (!(allowMixed && words.length >= 2)) return null;
+    return name;
+  }
+  if (!isPersonName(name)) return null;
   return name;
+}
+
+const NAME_CONFIRM = new Set(
+  [
+    "correct",
+    "correctly",
+    "right",
+    "perfect",
+    "fine",
+    "ok",
+    "okay",
+    "same",
+    "mine",
+    "sahi",
+    "theek",
+    "सही",
+    "ठीक",
+    "ਸਹੀ",
+    "ਠੀਕ",
+    "already",
+    "there",
+    "now",
+    "all",
+    "absolutely",
+    "exactly",
+    "spelling",
+    "spelt",
+    "spelled",
+    "only",
+    "yes",
+    "ही",
+    "ਹੀ",
+  ].map(fold),
+);
+
+const NAME_REJECT = new Set(
+  ["wrong", "misspelled", "गलत", "ਗਲਤ", "kya", "kaun", "what", "who", "क्या", "कौन", "ਕੀ", "ਕੌਣ"].map(fold),
+);
+
+export function explicitMetaOnly(text: string): boolean {
+  for (const part of text.split(/[.?!।]+/u)) {
+    const source = part.normalize("NFC").trim();
+    if (!source) continue;
+    for (const { pattern } of NAME_PATTERNS) {
+      const match = source.match(pattern);
+      if (!match) continue;
+      const tidy = tidyName(match[1] ?? "");
+      if (tidy && metaName(tidy)) return true;
+    }
+  }
+  return false;
+}
+
+export function explicitConfirmation(text: string): boolean {
+  let confirm = false;
+  for (const part of text.split(/[.?!।]+/u)) {
+    const source = part.normalize("NFC").trim();
+    if (!source) continue;
+    for (const { pattern } of NAME_PATTERNS) {
+      const match = source.match(pattern);
+      if (!match) continue;
+      const tidy = tidyName(match[1] ?? "");
+      if (!tidy) continue;
+      const words = tidy.split(/\s+/).filter(Boolean);
+      if (words.some((word) => NAME_REJECT.has(fold(word)))) return false;
+      if (!words.every((word) => NAME_CONFIRM.has(fold(word)))) return false;
+      confirm = true;
+    }
+  }
+  return confirm;
 }
 
 const RESERVED_NAMES = new Set(
@@ -862,7 +957,7 @@ function clauseNegatesDay(clause: string): boolean {
 }
 
 function weekdayFromPositiveClauses(text: string): number | null {
-  const kept = text.split(/[,;]|\bbut\b|\bso\b/i).filter((part) => part.trim() && !clauseNegatesDay(part));
+  const kept = text.split(/[,;]|\bbut\b|\bso\b|तो|ਤਾਂ/iu).filter((part) => part.trim() && !clauseNegatesDay(part));
   if (kept.length === 0) return null;
   return weekdayForBooking(tokenize(kept.join(" ")).map((token) => fold(token)));
 }
@@ -1010,6 +1105,17 @@ export function isOnlineQuestion(text: string): boolean {
   const question = /[?？]/.test(text) || /^(?:is|are|can|does|do|क्या|ਕੀ)\b/iu.test(text.trim());
   if (!question) return false;
   return hasAny(text, ["online", "on line"]) || text.includes("ऑनलाइन") || text.includes("ਔਨਲਾਈਨ");
+}
+
+export function isQuestionForm(text: string): boolean {
+  if (/[?？]/.test(text)) return true;
+  const folded = text.normalize("NFC").trim().toLowerCase();
+  if (/^(?:is|are|does|do|what|when|which|how|kya)\b/u.test(folded)) return true;
+  return /क्या|कब|ਕੀ|ਕਦੋਂ/u.test(text);
+}
+
+export function isTrialContentQuestion(text: string): boolean {
+  return mentionsTrial(text) && (hasAny(text, ["what happens", "what do you do", "what is in"]) || text.includes("क्या होता") || text.includes("ਕੀ ਹੁੰਦਾ"));
 }
 
 export function isTrialQuestion(text: string): boolean {
