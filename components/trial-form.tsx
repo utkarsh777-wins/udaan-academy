@@ -121,7 +121,10 @@ export function TrialForm() {
         if (body.fields?.includes("phone")) server.phone = copy.errPhone;
         if (body.fields?.includes("course")) server.course = copy.errCourse;
         if (body.fields?.includes("batch")) server.batch = copy.errBatch;
-        if (body.fields?.includes("date")) server.date = copy.errDate;
+        if (body.fields?.includes("date")) {
+          server.date =
+            body.dateReason === "weekday" ? copy.errWeekday : body.dateReason === "ended" ? copy.errEnded : body.dateReason === "window" ? copy.errWindow : copy.errDate;
+        }
         const fieldError = Boolean(server.name || server.phone || server.course || server.batch || server.date);
         if (!fieldError) server.form = body.error || body.message ? formServerMessage(language, body) : copy.errForm;
         focusFormError.current = !fieldError;

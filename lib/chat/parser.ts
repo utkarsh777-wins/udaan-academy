@@ -431,15 +431,19 @@ function extractPhone(text: string): string | null {
   return null;
 }
 
+function nameQuestion(text: string): boolean {
+  if (/[?？]/.test(text)) return true;
+  return /\b(?:kya|kaun|what|who)\b/i.test(text) || /क्या|कौन|ਕੀ|ਕੌਣ/u.test(text);
+}
+
 export function explicitName(text: string): string | null {
+  if (nameQuestion(text)) return null;
   const source = text.normalize("NFC").trim();
   const patterns = [
     /my name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
-    /change name to\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
+    /change (?:the )?name to\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
+    /the name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
     /mera naam\s+(.+?)\s+hai\b/iu,
-    /^(?:i'?m|i am)\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})$/iu,
-    /^(?:मैं|main)\s+(.+?)\s+(?:हूँ|हूं|हैं)$/u,
-    /^ਮੈਂ\s+(.+?)\s+ਹਾਂ$/u,
     /मेरा नाम(?:\s+है)?\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u,
     /^(?:नाम|name)\s*[:：]\s*([\p{L}\p{M}][\p{L}\p{M} .'-]{1,40})$/iu,
     /ਮੇਰਾ ਨਾਂ\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/u,
@@ -456,10 +460,26 @@ export function explicitName(text: string): string | null {
   return null;
 }
 
+function fillOnlyName(text: string): string | null {
+  const source = text.normalize("NFC").trim();
+  const patterns = [
+    /^(?:i'?m|i am)\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})$/iu,
+    /^(?:मैं|main)\s+(.+?)\s+(?:हूँ|हूं|हैं)$/u,
+    /^ਮੈਂ\s+(.+?)\s+ਹਾਂ$/u,
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (!match) continue;
+    const name = cleanName(match[1]);
+    if (name) return name;
+  }
+  return null;
+}
+
 function extractName(text: string): { name: string | null; explicit: boolean } {
   const stated = explicitName(text);
   if (stated) return { name: stated, explicit: true };
-  return { name: nameBesidePhone(text), explicit: false };
+  return { name: fillOnlyName(text) ?? nameBesidePhone(text), explicit: false };
 }
 
 function nameBesidePhone(source: string): string | null {
@@ -658,8 +678,6 @@ export function isPersonName(value: string): boolean {
     "जालंधर",
     "लुधियाना",
     "अमृतसर",
-    "पापा",
-    "मम्मी",
     "का",
     "नंबर",
     "नम्बर",
@@ -677,20 +695,23 @@ export function isPersonName(value: string): boolean {
     "ਮਿਹਰਬਾਨੀ",
     "ਕਿਰਪਾ",
     "ਮੇਰੇ",
-    "ਪੁੱਤ",
     "ਦਾ",
-    "ਬੇਟਾ",
-    "ਭਾਈ",
-    "ਮੰਮੀ",
-    "ਪਾਪਾ",
-    "papa",
-    "mummy",
-    "mom",
-    "dad",
-    "beta",
-    "bhai",
     "dhannvaad",
     "shukriya",
+    "thanku",
+    "ready",
+    "fine",
+    "good",
+    "here",
+    "busy",
+    "free",
+    "kya",
+    "kaun",
+    "तैयार",
+    "ਤਿਆਰ",
+    "करो",
+    "कैंसल",
+    "कैंसिल",
     "i'm",
     "im",
     "के",
@@ -707,8 +728,34 @@ export function isPersonName(value: string): boolean {
     "ਕਰਨੀ",
     "ਹੈ",
   ]);
+  const titles = new Set(
+    [
+      "papa",
+      "mummy",
+      "mom",
+      "dad",
+      "beta",
+      "bhai",
+      "uncle",
+      "aunty",
+      "पापा",
+      "मम्मी",
+      "नाना",
+      "नानी",
+      "दादा",
+      "ਪਾਪਾ",
+      "ਮੰਮੀ",
+      "ਬੇਟਾ",
+      "ਭਾਈ",
+      "ਪੁੱਤ",
+      "ਮਾਤਾ",
+      "ਪਿਤਾ",
+    ].map(fold),
+  );
   if (words.some((word) => blocked.has(fold(word)) || RESERVED_NAMES.has(fold(word)))) return false;
-  return true;
+  const honorifics = new Set(["ji", "जी", "ਜੀ"].map(fold));
+  const given = words.filter((word) => !titles.has(fold(word)) && !honorifics.has(fold(word)));
+  return given.length > 0;
 }
 
 function extractDate(text: string, now: Date): string | null {
@@ -759,9 +806,26 @@ function extractDate(text: string, now: Date): string | null {
     return value;
   }
 
-  const weekday = weekdayForBooking(tokens);
+  const weekday = weekdayFromPositiveClauses(text);
   if (weekday == null) return null;
   return upcomingWeekday(weekday, now, text);
+}
+
+function clauseNegatesDay(clause: string): boolean {
+  const folded = fold(clause);
+  return (
+    /\b(?:busy|unable)\b/.test(folded) ||
+    /\bnot free\b/.test(folded) ||
+    /\b(?:can't|cannot|cant)\b/.test(folded) ||
+    folded.includes("व्यस्त") ||
+    folded.includes("ਵਿਅਸਤ")
+  );
+}
+
+function weekdayFromPositiveClauses(text: string): number | null {
+  const kept = text.split(/[,;]|\bbut\b/i).filter((part) => part.trim() && !clauseNegatesDay(part));
+  if (kept.length === 0) return null;
+  return weekdayForBooking(tokenize(kept.join(" ")).map((token) => fold(token)));
 }
 
 const BOOKING_VERBS = new Set(
@@ -902,6 +966,13 @@ export function isDurationQuestion(text: string): boolean {
   return hasAny(text, ["how long", "how much time", "कितनी देर", "कितना लंबा", "ਕਿੰਨੀ ਦੇਰ"]);
 }
 
+export function isOnlineQuestion(text: string): boolean {
+  if (!mentionsTrial(text)) return false;
+  const question = /[?？]/.test(text) || /^(?:is|are|can|does|do|क्या|ਕੀ)\b/iu.test(text.trim());
+  if (!question) return false;
+  return hasAny(text, ["online", "on line"]) || text.includes("ऑनलाइन") || text.includes("ਔਨਲਾਈਨ");
+}
+
 export function isTrialInfoQuestion(text: string): boolean {
   if (!mentionsTrial(text) || isStaffQuestion(text)) return false;
   const question = /[?？]/.test(text) || /^(?:can|is|are|how|what|does|do|क्या|ਕੀ)\b/iu.test(text.trim());
@@ -995,7 +1066,7 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
 
   let intent: Intent = "unknown";
   if (isStaffQuestion(prepared) && !isBookingCommand(prepared)) intent = "unknown";
-  else if (isDurationQuestion(prepared) && mentionsTrial(prepared)) intent = "unknown";
+  else if (isOnlineQuestion(prepared) || (isDurationQuestion(prepared) && mentionsTrial(prepared))) intent = "unknown";
   else if (isTrialInfoQuestion(prepared) || questionAboutTrialEligibility(prepared)) intent = "eligibility";
   else if (asksIfConfirmed(prepared)) intent = "status";
   else if (hasAny(prepared, ELIGIBILITY_TERMS) && !hasAny(prepared, BOOK_VERBS) && !isBookingCommand(prepared) && !isStaffQuestion(prepared)) intent = "eligibility";

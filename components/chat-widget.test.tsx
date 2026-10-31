@@ -78,7 +78,7 @@ describe("chat launcher focus", () => {
 
   it("locks body scroll on a narrow screen while the chat is open", () => {
     Object.defineProperty(window, "scrollY", { configurable: true, value: 80 });
-    window.scrollTo = () => undefined;
+    window.scrollTo = vi.fn();
     mount();
     const launcher = host?.querySelector("button") as HTMLButtonElement | null;
     act(() => {
@@ -93,6 +93,7 @@ describe("chat launcher focus", () => {
     });
     expect(document.body.style.position).toBe("");
     expect(document.body.style.overflow).toBe("");
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 80, left: 0, behavior: "instant" });
   });
 
   it("ignores a second click on Send request", async () => {

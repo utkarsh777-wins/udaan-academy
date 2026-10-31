@@ -596,4 +596,89 @@ describe("blocker regressions", () => {
     expect(teacher.reply).toContain("हरलीन कौर");
     expect(teacher.reply).not.toContain("के लिए:");
   });
+
+  it("R10 does not let a status line replace Simran, and keeps real compound names", () => {
+    const simran = { active: true, confirming: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const, date: "2026-11-20" };
+    for (const text of ["I am ready", "I am fine", "मैं तैयार हूँ", "ਮੈਂ ਤਿਆਰ ਹਾਂ", "ਮੈਂ ਠੀਕ ਹਾਂ", "mera naam kya hai"]) {
+      expect(counsel({ text, language: "en", draft: simran, now }).draft.name, text).toBe("Simran");
+    }
+    expect(counsel({ text: "I am Aman", language: "en", draft: { active: true }, now }).draft.name).toBe("Aman");
+    expect(counsel({ text: "I am Aman", language: "en", draft: simran, now }).draft.name).toBe("Simran");
+    expect(counsel({ text: "name: Papa Singh", language: "en", draft: simran, now }).draft.name).toBe("Papa Singh");
+    expect(counsel({ text: "Bhai Mardana Singh", language: "en", draft: { active: true }, now }).draft.name).toBe("Bhai Mardana Singh");
+    expect(counsel({ text: "the name is Karan", language: "en", draft: simran, now }).draft.name).toBe("Karan");
+    expect(counsel({ text: "change the name to Jitesh", language: "en", draft: simran, now }).draft.name).toBe("Jitesh");
+    for (const text of ["uncle", "aunty", "नाना जी", "नानी", "दादा जी", "ਮਾਤਾ ਜੀ", "ਪਿਤਾ ਜੀ", "thanku", "thanku ji"]) {
+      expect(counsel({ text, language: "en", draft: { active: true }, now }).draft.name, text).toBeUndefined();
+    }
+    expect(parseUtterance("मेरा नाम सिमरन है", now).name).toBe("सिमरन");
+    expect(parseUtterance("ਮੇਰਾ ਨਾਂ ਸਿਮਰਨ ਹੈ", now).name).toBe("ਸਿਮਰਨ");
+    expect(parseUtterance("I'm Simran Stopford", now).name).toBe("Simran Stopford");
+  });
+
+  it("R10 cancels ordinary booking cancels and still ignores guards", () => {
+    const draft = { active: true, confirming: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const, date: "2026-11-20" };
+    for (const text of [
+      "Cancel.",
+      "cancel!",
+      "stop, cancel it",
+      "cancel the booking",
+      "cancel my booking",
+      "cancel this",
+      "stop the booking",
+      "I want to cancel",
+      "no, cancel",
+      "कैंसल करो",
+      "ਕੈਂਸਲ ਕਰੋ",
+      "ਰੱਦ ਕਰ ਦਿਓ",
+    ]) {
+      const result = counsel({ text, language: "en", draft, now });
+      expect(result.draft.name, text).toBeUndefined();
+      expect(result.ready, text).toBe(false);
+      expect(result.reply.toLowerCase(), text).not.toContain("which part");
+    }
+    const emptyName = counsel({ text: "कैंसल करो", language: "hi", draft: { active: true }, now });
+    expect(emptyName.draft.name).toBeUndefined();
+    for (const text of ["don't cancel", "can I cancel later?", "Which bus stop is nearest?"]) {
+      expect(counsel({ text, language: "en", draft, now }).draft.name, text).toBe("Simran");
+    }
+  });
+
+  it("R10 keeps a busy day from moving the trial and answers length and online", () => {
+    const booked = counsel({
+      text: "I'm busy Monday",
+      language: "en",
+      draft: { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning", date: "2026-11-20" },
+      now,
+    });
+    expect(booked.draft.date).toBe("2026-11-20");
+    expect(booked.draft.name).toBe("Simran");
+    expect(parseUtterance("I'm busy Monday", now).date).toBeNull();
+
+    const length = counsel({ text: "How long is the trial class?", language: "en", now });
+    expect(length.intent).not.toBe("book");
+    expect(length.reply.toLowerCase()).not.toContain("usual hour");
+    expect(length.reply).toContain("1–4");
+
+    for (const [text, language, online] of [
+      ["Is the trial online?", "en", "not online"],
+      ["क्या ट्रायल ऑनलाइन है?", "hi", "ऑनलाइन नहीं"],
+      ["ਕੀ ਟਰਾਇਲ ਔਨਲਾਈਨ ਹੈ?", "pa", "ਔਨਲਾਈਨ ਨਹੀਂ"],
+    ] as const) {
+      const answer = counsel({ text, language, now });
+      expect(answer.intent, text).not.toBe("book");
+      expect(answer.draft.active, text).toBeUndefined();
+      expect(answer.reply, text).toContain(online);
+    }
+
+    const fees = counsel({ text: "JEE fees", language: "hi", now });
+    expect(fees.reply).toContain("मासिक");
+    expect(fees.reply).not.toContain("(Monthly)");
+    const punjabiFees = counsel({ text: "JEE fees", language: "pa", now });
+    expect(punjabiFees.reply).toContain("ਮਹੀਨਾਵਾਰ");
+    expect(punjabiFees.reply).not.toContain("(Monthly)");
+    const teacher = counsel({ text: "Who teaches IELTS?", language: "pa", now });
+    expect(teacher.reply).toContain("ਹਰਲੀਨ ਕੌਰ");
+    expect(teacher.reply).not.toContain("Harleen Kaur");
+  });
 });

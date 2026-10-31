@@ -129,7 +129,7 @@ export function ChatWidget() {
       body.style.right = previous.right;
       body.style.width = previous.width;
       body.style.overflow = previous.overflow;
-      window.scrollTo(0, y);
+      window.scrollTo({ top: y, left: 0, behavior: "instant" });
     };
   }, [open]);
 
@@ -236,6 +236,7 @@ export function ChatWidget() {
   const confirming = Boolean(draft.confirming && draft.course && draft.batch && draft.date);
   const booked = draft.course ? getCourse(draft.course) : undefined;
   const bookedView = booked ? courseCopy(booked, language === "pa" ? "en" : language) : null;
+  const courseName = booked ? (language === "pa" ? booked.namePa : bookedView?.name ?? booked.name) : "";
   const bookedBatch = bookedView?.batches.find((item) => item.id === draft.batch);
 
   if (pathname === "/contact") return null;
@@ -334,11 +335,11 @@ export function ChatWidget() {
                 label={language === "hi" ? "ट्रायल क्लास का विवरण" : language === "pa" ? "ਟਰਾਇਲ ਕਲਾਸ ਦਾ ਵੇਰਵਾ" : "Trial class details"}
                 eyebrow={language === "hi" ? "फ़्री ट्रायल क्लास" : language === "pa" ? "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ" : "Free trial class"}
                 from={language === "hi" ? "फगवाड़ा" : language === "pa" ? "ਫਗਵਾੜਾ" : "Phagwara"}
-                to={bookedView.name}
+                to={courseName}
                 fields={[
                   { label: language === "hi" ? "नाम" : language === "pa" ? "ਨਾਮ" : "Name", value: draft.name ?? "" },
                   { label: language === "hi" ? "फ़ोन" : language === "pa" ? "ਫੋਨ" : "Phone", value: draft.phone ?? "", mono: true },
-                  { label: language === "hi" ? "कोर्स" : language === "pa" ? "ਕੋਰਸ" : "Course", value: bookedView.name },
+                  { label: language === "hi" ? "कोर्स" : language === "pa" ? "ਕੋਰਸ" : "Course", value: courseName },
                   {
                     label: language === "hi" ? "बैच" : language === "pa" ? "ਬੈਚ" : "Batch",
                     value: draft.batch ? (language === "en" ? batchLabel(draft.batch, "en").replace(/^./, (letter) => letter.toUpperCase()) : batchLabel(draft.batch, language)) : bookedBatch.label,

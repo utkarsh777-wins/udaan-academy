@@ -10,11 +10,13 @@ import {
 import { addISODays, formatLongDate, todayISO } from "@/lib/dates";
 import { batchHasEnded, nextOpenDate, weekdayIndex } from "@/lib/schedule";
 import hindiContent from "@/content/academy.hi.json";
+import punjabiContent from "@/content/academy.pa.json";
 import {
   classYear,
   explicitName,
   includesTerm,
   isDurationQuestion,
+  isOnlineQuestion,
   isPersonName,
   isStaffQuestion,
   isTrialInfoQuestion,
@@ -182,8 +184,9 @@ export function counsel(options: {
 
 function answer(parsed: ParseResult, text: string, language: Language): string {
   if (isStaffQuestion(text)) return facultyAnswer(parsed, language);
+  if (isOnlineQuestion(text)) return trialOnlineReply(language);
   if (isDurationQuestion(text) && (includesTerm(text, "trial") || text.includes("ट्रायल") || text.includes("ਟਰਾਇਲ"))) {
-    return trialLengthReply(language);
+    return trialLengthReply(language, parsed);
   }
   if (parsed.intent === "greeting") return openingGreeting(language);
   if (parsed.intent === "off_topic") return offTopic(language);
@@ -230,6 +233,7 @@ const YES = new Set([
 const CANCEL_PHRASES = [
   "cancel",
   "cancel it",
+  "cancel this",
   "stop",
   "stop it",
   "ruko",
@@ -245,6 +249,7 @@ const CANCEL_PHRASES = [
   "रद्द करें",
   "रद्द कर दो",
   "कैंसल",
+  "कैंसल करो",
   "कैंसल कर दो",
   "कैंसिल",
   "कैंसिल कर दो",
@@ -253,29 +258,47 @@ const CANCEL_PHRASES = [
   "ਰੁਕੋ",
   "ਰੱਦ",
   "ਰੱਦ ਕਰੋ",
+  "ਰੱਦ ਕਰ ਦਿਓ",
   "ਛੱਡੋ",
   "ਕੈਂਸਲ",
+  "ਕੈਂਸਲ ਕਰੋ",
 ].map((phrase) => phrase.normalize("NFC").toLowerCase());
 
-const CANCEL_FILLERS = new Set(["please", "plz", "ji", "जी", "ਜੀ"].map((word) => word.normalize("NFC").toLowerCase()));
+const CANCEL_TOKENS = new Set(
+  ["cancel", "stop", "ruko", "rehne", "रुको", "रुकिए", "रद्द", "कैंसल", "कैंसिल", "छोड़ो", "ਰੁਕੋ", "ਰੱਦ", "ਛੱਡੋ", "ਕੈਂਸਲ"].map((word) =>
+    word.normalize("NFC").toLowerCase(),
+  ),
+);
+
+const CANCEL_FILLERS = new Set(["please", "plz", "ji", "जी", "ਜੀ", "the", "my"].map((word) => word.normalize("NFC").toLowerCase()));
 
 function isCancel(text: string): boolean {
   if (/[?？]/.test(text)) return false;
-  const cleaned = text.normalize("NFC").replace(/[।,]+/g, " ").replace(/\s+/g, " ").trim();
+  const cleaned = text
+    .normalize("NFC")
+    .replace(/[.!।]+/g, " ")
+    .replace(/[,，]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const folded = cleaned.toLowerCase();
-  if (/^(?:what|is|which|why|how|when|where|who|kya|क्या|ਕੀ)\b/u.test(folded)) return false;
+  if (/^(?:what|is|which|why|how|when|where|who|can|kya|क्या|ਕੀ)\b/u.test(folded)) return false;
   if (includesTerm(cleaned, "what") || includesTerm(cleaned, "which") || includesTerm(cleaned, "kya") || cleaned.includes("क्या") || cleaned.includes("ਕੀ")) {
     return false;
   }
-  if (["don't", "dont", "do not", "no need", "not", "mat", "मत", "नहीं", "nahi", "ਨਾ", "ਨਹੀਂ"].some((word) => includesTerm(cleaned, word) || folded.includes(word))) {
+  if (["don't", "dont", "do not", "no need", "not", "mat", "मत", "नहीं", "nahi", "ਨਾ", "ਨਹੀਂ"].some((word) => includesTerm(cleaned, word))) {
     return false;
   }
-  const withoutBusStop = folded.replace(/\bbus stop\b/g, " ").replace(/\s+/g, " ").trim();
-  const words = withoutBusStop.split(/\s+/).filter(Boolean);
+  const withoutBusStop = folded.replace(/\bbus stop\b/g, " ");
+  const stripped = withoutBusStop
+    .replace(/^(?:please|i want to|no)\s+/, "")
+    .replace(/\b(?:it|this|the booking|my booking|booking)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = stripped.split(/\s+/).filter((word) => word && !CANCEL_FILLERS.has(word));
   if (words.length === 0 || words.length > 4) return false;
-  const core = words.filter((word) => !CANCEL_FILLERS.has(word));
-  if (core.length === 0) return false;
-  return CANCEL_PHRASES.includes(core.join(" "));
+  const phrase = words.join(" ");
+  if (CANCEL_PHRASES.includes(phrase)) return true;
+  return words.every((word) => CANCEL_TOKENS.has(word));
 }
 
 function isHedged(text: string): boolean {
@@ -305,10 +328,38 @@ function courseAllowsClass(course: Course, year: number): boolean {
   return years.includes(year);
 }
 
-function trialLengthReply(language: Language): string {
-  if (language === "hi") return speak("hi", ["ट्रायल एक फ्री क्लास है", "उतनी देर जितनी उस बैच की क्लास", "पूरा कोर्स नहीं"]);
-  if (language === "pa") return speak("pa", ["ਟਰਾਇਲ ਇੱਕ ਫ੍ਰੀ ਕਲਾਸ ਹੈ", "ਉਨੀ ਦੇਰ ਜਿੰਨੀ ਉਸ ਬੈਚ ਦੀ ਕਲਾਸ", "ਪੂਰਾ ਕੋਰਸ ਨਹੀਂ"]);
-  return speak("en", ["The trial is one free class", "It lasts about as long as that batch’s usual hour", "It is not the full course"]);
+function batchHours(time: string): number | null {
+  const range = parseClockRange(time);
+  if (!range) return null;
+  const start = range.start.hour % 12 + (range.start.meridiem === "pm" ? 12 : 0) + range.start.minute / 60;
+  const end = range.end.hour % 12 + (range.end.meridiem === "pm" ? 12 : 0) + range.end.minute / 60;
+  const hours = end - start;
+  return hours > 0 ? hours : null;
+}
+
+function formatHours(hours: number): string {
+  return Number.isInteger(hours) ? String(hours) : String(hours);
+}
+
+function trialLengthReply(language: Language, parsed: ParseResult): string {
+  const courses = parsed.courses.length ? academy.courses.filter((course) => parsed.courses.includes(course.slug)) : academy.courses;
+  const hours = courses.flatMap((course) => course.batches.map((batch) => batchHours(batch.time))).filter((value): value is number => value != null);
+  const min = Math.min(...hours);
+  const max = Math.max(...hours);
+  const span = min === max ? formatHours(min) : `${formatHours(min)}–${formatHours(max)}`;
+  if (language === "hi") {
+    return speak("hi", ["ट्रायल एक फ्री क्लास है", `वह बैच ${span} घंटे चलता है`, "पूरा कोर्स नहीं"]);
+  }
+  if (language === "pa") {
+    return speak("pa", ["ਟਰਾਇਲ ਇੱਕ ਫ੍ਰੀ ਕਲਾਸ ਹੈ", `ਉਹ ਬੈਚ ${span} ਘੰਟੇ ਚੱਲਦਾ ਹੈ`, "ਪੂਰਾ ਕੋਰਸ ਨਹੀਂ"]);
+  }
+  return speak("en", ["The trial is one free class", `It lasts as long as that batch, ${span} hours`, "It is not the full course"]);
+}
+
+function trialOnlineReply(language: Language): string {
+  if (language === "hi") return speak("hi", ["ट्रायल क्लास जीटी रोड, फगवाड़ा की क्लास में होती है", "ऑनलाइन नहीं"]);
+  if (language === "pa") return speak("pa", ["ਟਰਾਇਲ ਕਲਾਸ ਜੀਟੀ ਰੋਡ, ਫਗਵਾੜਾ ਦੀ ਕਲਾਸ ਵਿੱਚ ਹੁੰਦੀ ਹੈ", "ਔਨਲਾਈਨ ਨਹੀਂ"]);
+  return speak("en", ["The trial class is in the classroom on GT Road in Phagwara", "It is not online"]);
 }
 
 function trialFreeReply(language: Language, text: string): string {
@@ -353,6 +404,10 @@ function facultyAnswer(parsed: ParseResult, language: Language): string {
   const lines = people.map((person) => {
     if (language === "hi") {
       const translated = hindiContent.faculty[person.id as keyof typeof hindiContent.faculty];
+      return `${translated?.name ?? person.name}: ${translated?.role ?? person.role}`;
+    }
+    if (language === "pa") {
+      const translated = punjabiContent.faculty[person.id as keyof typeof punjabiContent.faculty];
       return `${translated?.name ?? person.name}: ${translated?.role ?? person.role}`;
     }
     return `${person.name}: ${person.role}`;
@@ -803,15 +858,22 @@ function feeSentence(course: Course, language: Language): string {
       const low = formatInr(fee.min);
       const high = formatInr(fee.max);
       const name = shownCourse(course, language);
+      const hindiFees = hindiContent.courses[course.slug as keyof typeof hindiContent.courses]?.fees as Record<string, string> | undefined;
+      const label =
+        language === "hi"
+          ? hindiFees?.[fee.label] ?? fee.label
+          : language === "pa"
+            ? punjabiContent.fees[fee.label as keyof typeof punjabiContent.fees] ?? fee.label
+            : fee.label;
       if (language === "hi") {
         return fee.period === "package"
           ? `${name} की फीस पूरे पैकेज की ${low} से ${high} है, कोर्स ${duration} का है`
-          : `${name} (${fee.label}) की फीस महीने की ${low} से ${high} है`;
+          : `${name} (${label}) की फीस महीने की ${low} से ${high} है`;
       }
       if (language === "pa") {
         return fee.period === "package"
           ? `${name} ਦੀ ਫੀਸ ਪੂਰੇ ਪੈਕੇਜ ਦੀ ${low} ਤੋਂ ${high} ਹੈ, ਕੋਰਸ ${duration} ਦਾ ਹੈ`
-          : `${name} (${fee.label}) ਦੀ ਫੀਸ ਮਹੀਨੇ ਦੀ ${low} ਤੋਂ ${high} ਹੈ`;
+          : `${name} (${label}) ਦੀ ਫੀਸ ਮਹੀਨੇ ਦੀ ${low} ਤੋਂ ${high} ਹੈ`;
       }
       return fee.period === "package"
         ? `${course.name} is ${low}–${high} for the full package, over ${course.duration}`
