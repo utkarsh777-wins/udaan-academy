@@ -28,9 +28,10 @@ export function Ticket({
           <span className="min-w-0 font-heading text-[22px] leading-tight font-bold break-words">{to}</span>
         </div>
       </div>
-      <div className="relative mx-3.5 overflow-hidden border-t-[1.5px] border-dashed border-border">
-        <span className="absolute -top-2.5 -left-6 size-5 rounded-full border border-border bg-background [clip-path:inset(0_0_0_50%)]" />
-        <span className="absolute -top-2.5 -right-6 size-5 rounded-full border border-border bg-background [clip-path:inset(0_50%_0_0)]" />
+      <div className="relative">
+        <div className="mx-3.5 border-t-[1.5px] border-dashed border-border" />
+        <span className="absolute top-0 left-0 size-5 -translate-y-1/2 rounded-full border border-border bg-background [clip-path:inset(0_0_0_50%)]" />
+        <span className="absolute top-0 right-0 size-5 -translate-y-1/2 rounded-full border border-border bg-background [clip-path:inset(0_50%_0_0)]" />
       </div>
       <dl className="grid grid-cols-2 gap-3.5 px-5 py-4">
         {fields.map((field) => (

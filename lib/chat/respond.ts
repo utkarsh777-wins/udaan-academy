@@ -9,11 +9,15 @@ import {
 } from "@/lib/academy";
 import { addISODays, formatLongDate, todayISO } from "@/lib/dates";
 import { batchHasEnded, nextOpenDate, weekdayIndex } from "@/lib/schedule";
+import hindiContent from "@/content/academy.hi.json";
 import {
   classYear,
+  explicitName,
   includesTerm,
+  isDurationQuestion,
   isPersonName,
   isStaffQuestion,
+  isTrialInfoQuestion,
   parseUtterance,
   questionAboutTrialEligibility,
   type Intent,
@@ -70,7 +74,7 @@ export function counsel(options: {
       parsed.intent === "admission"
         ? admissionAnswer(parsed, language)
         : parsed.intent === "eligibility"
-          ? questionAboutTrialEligibility(options.text)
+          ? questionAboutTrialEligibility(options.text) || isTrialInfoQuestion(options.text)
             ? trialFreeReply(language, options.text)
             : eligibilityAnswer(parsed, language)
           : statusAnswer(language);
@@ -83,7 +87,7 @@ export function counsel(options: {
     };
   }
 
-  if (incoming.confirming && mentionsChange(options.text)) {
+  if (incoming.confirming && mentionsChange(options.text) && !explicitName(options.text)) {
     return {
       reply: academy.counsellor.changeField[language],
       draft: { ...incoming, active: true, confirming: false },
@@ -178,6 +182,9 @@ export function counsel(options: {
 
 function answer(parsed: ParseResult, text: string, language: Language): string {
   if (isStaffQuestion(text)) return facultyAnswer(parsed, language);
+  if (isDurationQuestion(text) && (includesTerm(text, "trial") || text.includes("ट्रायल") || text.includes("ਟਰਾਇਲ"))) {
+    return trialLengthReply(language);
+  }
   if (parsed.intent === "greeting") return openingGreeting(language);
   if (parsed.intent === "off_topic") return offTopic(language);
   if (parsed.intent === "phone") return phoneAnswer(language);
@@ -220,30 +227,55 @@ const YES = new Set([
   "ਠੀਕ ਹੈ ਜੀ",
 ]);
 
-const CANCEL_TERMS = [
+const CANCEL_PHRASES = [
   "cancel",
-  "cancelled",
-  "cancellation",
+  "cancel it",
   "stop",
+  "stop it",
   "ruko",
+  "rehne do",
+  "रहने दो",
   "never mind",
   "nevermind",
   "forget it",
   "रुको",
   "रुकिए",
   "रद्द",
-  "कैंसिल",
+  "रद्द करो",
+  "रद्द करें",
+  "रद्द कर दो",
   "कैंसल",
+  "कैंसल कर दो",
+  "कैंसिल",
+  "कैंसिल कर दो",
   "छोड़ो",
-  "ਭੁੱਲੋ",
+  "छोड़ दो",
   "ਰੁਕੋ",
   "ਰੱਦ",
+  "ਰੱਦ ਕਰੋ",
   "ਛੱਡੋ",
   "ਕੈਂਸਲ",
-];
+].map((phrase) => phrase.normalize("NFC").toLowerCase());
+
+const CANCEL_FILLERS = new Set(["please", "plz", "ji", "जी", "ਜੀ"].map((word) => word.normalize("NFC").toLowerCase()));
 
 function isCancel(text: string): boolean {
-  return CANCEL_TERMS.some((term) => includesTerm(text, term));
+  if (/[?？]/.test(text)) return false;
+  const cleaned = text.normalize("NFC").replace(/[।,]+/g, " ").replace(/\s+/g, " ").trim();
+  const folded = cleaned.toLowerCase();
+  if (/^(?:what|is|which|why|how|when|where|who|kya|क्या|ਕੀ)\b/u.test(folded)) return false;
+  if (includesTerm(cleaned, "what") || includesTerm(cleaned, "which") || includesTerm(cleaned, "kya") || cleaned.includes("क्या") || cleaned.includes("ਕੀ")) {
+    return false;
+  }
+  if (["don't", "dont", "do not", "no need", "not", "mat", "मत", "नहीं", "nahi", "ਨਾ", "ਨਹੀਂ"].some((word) => includesTerm(cleaned, word) || folded.includes(word))) {
+    return false;
+  }
+  const withoutBusStop = folded.replace(/\bbus stop\b/g, " ").replace(/\s+/g, " ").trim();
+  const words = withoutBusStop.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 4) return false;
+  const core = words.filter((word) => !CANCEL_FILLERS.has(word));
+  if (core.length === 0) return false;
+  return CANCEL_PHRASES.includes(core.join(" "));
 }
 
 function isHedged(text: string): boolean {
@@ -271,6 +303,12 @@ function courseAllowsClass(course: Course, year: number): boolean {
   if (/class\s+8\s+and\s+above/.test(text) && year >= 8 && year <= 12) return true;
   const years = [...text.matchAll(/\b(8|9|10|11|12)\b/g)].map((match) => Number(match[1]));
   return years.includes(year);
+}
+
+function trialLengthReply(language: Language): string {
+  if (language === "hi") return speak("hi", ["ट्रायल एक फ्री क्लास है", "उतनी देर जितनी उस बैच की क्लास", "पूरा कोर्स नहीं"]);
+  if (language === "pa") return speak("pa", ["ਟਰਾਇਲ ਇੱਕ ਫ੍ਰੀ ਕਲਾਸ ਹੈ", "ਉਨੀ ਦੇਰ ਜਿੰਨੀ ਉਸ ਬੈਚ ਦੀ ਕਲਾਸ", "ਪੂਰਾ ਕੋਰਸ ਨਹੀਂ"]);
+  return speak("en", ["The trial is one free class", "It lasts about as long as that batch’s usual hour", "It is not the full course"]);
 }
 
 function trialFreeReply(language: Language, text: string): string {
@@ -312,7 +350,13 @@ function facultyAnswer(parsed: ParseResult, language: Language): string {
     });
   });
   const people = matched.length > 0 ? matched : academy.faculty;
-  const lines = people.map((person) => `${person.name}: ${person.role}`);
+  const lines = people.map((person) => {
+    if (language === "hi") {
+      const translated = hindiContent.faculty[person.id as keyof typeof hindiContent.faculty];
+      return `${translated?.name ?? person.name}: ${translated?.role ?? person.role}`;
+    }
+    return `${person.name}: ${person.role}`;
+  });
   const note =
     language === "hi"
       ? "ये नाम टीचरों की जगह खड़े हैं, फ़ोटो नहीं"
@@ -420,8 +464,11 @@ function sameSlots(left: Draft, right: Draft): boolean {
 }
 
 function shownCourse(course: Course, language: Language): string {
-  if (language === "hi") return course.name.replaceAll("&", "और");
-  if (language === "pa") return course.name.replaceAll("&", "ਅਤੇ");
+  if (language === "hi") {
+    const translated = hindiContent.courses[course.slug as keyof typeof hindiContent.courses];
+    return translated?.name ?? course.name;
+  }
+  if (language === "pa") return course.namePa;
   return course.name;
 }
 
@@ -478,7 +525,8 @@ function summaryReply(draft: Draft, language: Language): string {
 function mergeDraft(draft: Draft, parsed: ParseResult, text: string): Draft {
   const next: Draft = { ...draft, confirming: false };
   const pending = firstMissing(next);
-  if (!next.name && parsed.name) next.name = parsed.name;
+  if (parsed.nameExplicit && parsed.name) next.name = parsed.name;
+  else if (!next.name && parsed.name) next.name = parsed.name;
   else if (!next.name && pending === "name" && parsed.intent !== "book" && isPersonName(stripPunctuation(text))) {
     next.name = stripPunctuation(text);
   }

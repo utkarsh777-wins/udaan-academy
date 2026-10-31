@@ -509,6 +509,10 @@ describe("blocker regressions", () => {
     });
     expect(reply).toContain("ਨਵੰਬਰ");
     expect(reply).not.toContain("M11");
+    const named = counsel({ text: "JEE fees", language: "hi", now });
+    expect(named.reply).toContain("JEE फाउंडेशन");
+    const punjabiCourse = counsel({ text: "JEE batches", language: "pa", now });
+    expect(punjabiCourse.reply).toContain("JEE ਫਾਊਂਡੇਸ਼ਨ");
     const hindi = formServerMessage("hi", {
       error: "invalid",
       fields: ["phone", "date"],
@@ -517,5 +521,79 @@ describe("blocker regressions", () => {
     });
     expect(hindi).toContain("दस अंक");
     expect(hindi).toContain("बैच के दिन नहीं");
+  });
+
+  it("R9 cancels only a short command and keeps the draft otherwise", () => {
+    const mid = { active: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const, date: "2026-11-20" };
+    const confirming = { ...mid, confirming: true };
+    const kept = [
+      "don't cancel, book it",
+      "don't stop, go ahead",
+      "no need to cancel",
+      "Is there a cancellation fee?",
+      "Which bus stop is nearest?",
+      "what if I need to cancel later?",
+      "रद्द मत करो",
+      "ਰੱਦ ਨਾ ਕਰੋ",
+      "mat roko",
+    ];
+    for (const text of kept) {
+      for (const draft of [mid, confirming]) {
+        const result = counsel({ text, language: "en", draft, now });
+        expect(result.draft.name, text).toBe("Simran");
+        expect(result.draft.course, text).toBe("ielts-pte");
+      }
+    }
+    for (const text of ["cancel", "stop", "cancel it", "rehne do", "रद्द करो", "कैंसल कर दो", "ਰੱਦ ਕਰੋ"]) {
+      const result = counsel({ text, language: "en", draft: confirming, now });
+      expect(result.draft.name, text).toBeUndefined();
+      expect(result.ready, text).toBe(false);
+    }
+  });
+
+  it("R9 lets an explicit name replace Simran, and ignores junk beside a phone", () => {
+    const draft = { active: true, confirming: true, name: "Simran", phone: "9876543210", course: "ielts-pte", batch: "morning" as const, date: "2026-11-20" };
+    const phrases: Array<[string, string]> = [
+      ["my name is Aman", "Aman"],
+      ["change name to Harman", "Harman"],
+      ["name: Priya", "Priya"],
+      ["मेरा नाम अमन है", "अमन"],
+      ["ਮੇਰਾ ਨਾਂ ਹਰਮਨ ਹੈ", "ਹਰਮਨ"],
+      ["mera naam Simran hai", "Simran"],
+    ];
+    for (const [text, expected] of phrases) {
+      expect(counsel({ text, language: "en", draft, now }).draft.name, text).toBe(expected);
+    }
+    expect(counsel({ text: "Simran, 9876543210", language: "en", draft, now }).draft.name).toBe("Simran");
+    const phone = "9876543210";
+    for (const phrase of [`ਧੰਨਵਾਦ ${phone}`, `papa ${phone}`, `पापा का नंबर ${phone}`, `मम्मी ${phone}`, `ਮੇਰੇ ਪੁੱਤ ਦਾ ${phone}`]) {
+      expect(parseUtterance(phrase, now).name, phrase).toBeNull();
+      expect(counsel({ text: phrase, language: "en", draft: { active: true }, now }).draft.name, phrase).toBeUndefined();
+    }
+    expect(parseUtterance("mera naam Simran hai", now).name).toBe("Simran");
+  });
+
+  it("R9 answers trial questions and a Hindi teacher question without booking", () => {
+    const class8 = counsel({ text: "Can a class 8 student attend the trial class?", language: "en", now });
+    expect(class8.intent).not.toBe("book");
+    expect(class8.draft.active).toBeUndefined();
+    expect(class8.reply).toContain("Spoken English");
+    expect(class8.reply.toLowerCase()).toContain("free");
+
+    const free = counsel({ text: "Is the trial class free?", language: "en", now });
+    expect(free.intent).not.toBe("book");
+    expect(free.draft.name).toBeUndefined();
+    expect(free.reply.toLowerCase()).toContain("free");
+
+    const length = counsel({ text: "How long is the trial class?", language: "en", now });
+    expect(length.intent).not.toBe("book");
+    expect(length.draft.active).toBeUndefined();
+    expect(length.reply.toLowerCase()).toContain("one free class");
+
+    const teacher = counsel({ text: "IELTS कौन पढ़ाता है?", language: "hi", now });
+    expect(teacher.intent).not.toBe("eligibility");
+    expect(teacher.ready).toBe(false);
+    expect(teacher.reply).toContain("हरलीन कौर");
+    expect(teacher.reply).not.toContain("के लिए:");
   });
 });

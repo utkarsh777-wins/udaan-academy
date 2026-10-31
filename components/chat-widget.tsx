@@ -87,6 +87,7 @@ export function ChatWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
+  const sendingRef = useRef(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
 
@@ -104,15 +105,31 @@ export function ChatWidget() {
   useEffect(() => {
     if (!open) return;
     const media = window.matchMedia?.("(max-width: 767px)");
-    if (!media) return;
-    const lock = () => {
-      document.body.style.overflow = media.matches ? "hidden" : "";
+    if (!media?.matches) return;
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    const body = document.body;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
     };
-    lock();
-    media.addEventListener("change", lock);
+    body.style.position = "fixed";
+    body.style.top = `-${y}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
     return () => {
-      media.removeEventListener("change", lock);
-      document.body.style.overflow = "";
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.left = previous.left;
+      body.style.right = previous.right;
+      body.style.width = previous.width;
+      body.style.overflow = previous.overflow;
+      window.scrollTo(0, y);
     };
   }, [open]);
 
@@ -161,12 +178,13 @@ export function ChatWidget() {
 
   async function send(text: string, display?: string) {
     const message = text.trim();
-    if (!message || pending) return;
+    if (!message || pending || sendingRef.current) return;
+    sendingRef.current = true;
+    setPending(true);
     setError("");
     setInput("");
     const history = messages.map(({ role, content }) => ({ role, content }));
     setMessages((current) => [...current, { role: "user", content: display ?? message, language }]);
-    setPending(true);
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -204,6 +222,7 @@ export function ChatWidget() {
             : "The connection dropped. Try again in a moment.",
       );
     } finally {
+      sendingRef.current = false;
       setPending(false);
     }
   }

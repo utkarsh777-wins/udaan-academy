@@ -32,6 +32,7 @@ export type ParseResult = {
   partySize: number | null;
   phone: string | null;
   name: string | null;
+  nameExplicit: boolean;
   date: string | null;
   greeting: boolean;
 };
@@ -430,10 +431,12 @@ function extractPhone(text: string): string | null {
   return null;
 }
 
-function extractName(text: string): string | null {
+export function explicitName(text: string): string | null {
   const source = text.normalize("NFC").trim();
   const patterns = [
     /my name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
+    /change name to\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu,
+    /mera naam\s+(.+?)\s+hai\b/iu,
     /^(?:i'?m|i am)\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})$/iu,
     /^(?:मैं|main)\s+(.+?)\s+(?:हूँ|हूं|हैं)$/u,
     /^ਮੈਂ\s+(.+?)\s+ਹਾਂ$/u,
@@ -450,7 +453,13 @@ function extractName(text: string): string | null {
     const name = cleanName(match[1]);
     if (name) return name;
   }
-  return nameBesidePhone(source);
+  return null;
+}
+
+function extractName(text: string): { name: string | null; explicit: boolean } {
+  const stated = explicitName(text);
+  if (stated) return { name: stated, explicit: true };
+  return { name: nameBesidePhone(text), explicit: false };
 }
 
 function nameBesidePhone(source: string): string | null {
@@ -467,7 +476,7 @@ function cleanName(value: string): string | null {
   const cut = value.split(/\s+(?:and|aur|ਅਤੇ|phone|फोन|ਫੋਨ|,)/i)[0] ?? value;
   const name = cut
     .replace(/[।.!?]+$/g, "")
-    .replace(/(?:\s+(?:है|हैं|हूँ|हूं|जी|ਹੈ|ਹਾਂ|ਜੀ))+$/u, "")
+    .replace(/(?:\s+(?:है|हैं|हूँ|हूं|जी|hai|ਹੈ|ਹਾਂ|ਜੀ))+$/iu, "")
     .trim();
   if (!isPersonName(name)) return null;
   return name;
@@ -486,6 +495,8 @@ const RESERVED_NAMES = new Set(
     "go",
     "ahead",
     "go ahead",
+    "पापा का नंबर",
+    "ਮੇਰੇ ਪੁੱਤ ਦਾ",
     "आगे बढ़ो",
     "आगे बढ़िए",
     "theek",
@@ -647,6 +658,11 @@ export function isPersonName(value: string): boolean {
     "जालंधर",
     "लुधियाना",
     "अमृतसर",
+    "पापा",
+    "मम्मी",
+    "का",
+    "नंबर",
+    "नम्बर",
     "ਕਰੋ",
     "ਕਰ",
     "ਦੋ",
@@ -656,6 +672,25 @@ export function isPersonName(value: string): boolean {
     "ਫਗਵਾੜਾ",
     "ਜਲੰਧਰ",
     "ਲੁਧਿਆਣਾ",
+    "ਧੰਨਵਾਦ",
+    "ਸ਼ੁਕਰੀਆ",
+    "ਮਿਹਰਬਾਨੀ",
+    "ਕਿਰਪਾ",
+    "ਮੇਰੇ",
+    "ਪੁੱਤ",
+    "ਦਾ",
+    "ਬੇਟਾ",
+    "ਭਾਈ",
+    "ਮੰਮੀ",
+    "ਪਾਪਾ",
+    "papa",
+    "mummy",
+    "mom",
+    "dad",
+    "beta",
+    "bhai",
+    "dhannvaad",
+    "shukriya",
     "i'm",
     "im",
     "के",
@@ -835,6 +870,48 @@ function mentionsFree(text: string): boolean {
   return includesTerm(text, "free") || text.includes("फ्री") || text.includes("फ़्री") || text.includes("ਫ੍ਰੀ");
 }
 
+const WEEKDAY_WORDS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+  "सोमवार",
+  "मंगलवार",
+  "बुधवार",
+  "गुरुवार",
+  "शुक्रवार",
+  "शनिवार",
+  "रविवार",
+  "ਸੋਮਵਾਰ",
+  "ਮੰਗਲਵਾਰ",
+  "ਬੁੱਧਵਾਰ",
+  "ਵੀਰਵਾਰ",
+  "ਸ਼ੁੱਕਰਵਾਰ",
+  "ਸ਼ਨੀਵਾਰ",
+  "ਐਤਵਾਰ",
+];
+
+export function hasWeekday(text: string): boolean {
+  return hasAny(text, WEEKDAY_WORDS);
+}
+
+export function isDurationQuestion(text: string): boolean {
+  return hasAny(text, ["how long", "how much time", "कितनी देर", "कितना लंबा", "ਕਿੰਨੀ ਦੇਰ"]);
+}
+
+export function isTrialInfoQuestion(text: string): boolean {
+  if (!mentionsTrial(text) || isStaffQuestion(text)) return false;
+  const question = /[?？]/.test(text) || /^(?:can|is|are|how|what|does|do|क्या|ਕੀ)\b/iu.test(text.trim());
+  if (!question) return false;
+  if (isDurationQuestion(text)) return false;
+  if (hasWeekday(text) && isBookingCommand(text)) return false;
+  if (classYear(text) != null) return true;
+  return mentionsFree(text);
+}
+
 export function questionAboutTrialEligibility(text: string): boolean {
   if (isStaffQuestion(text) || isTimingQuestion(text) || isBookingCommand(text)) return false;
   const year = classYear(text);
@@ -898,6 +975,7 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
       partySize: null,
       phone: null,
       name: null,
+      nameExplicit: false,
       date: null,
       greeting: true,
     };
@@ -908,7 +986,7 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
   const period = periodFromTokens(tokens);
   const batch = batchFrom(period, time);
   const phone = extractPhone(prepared);
-  const name = extractName(prepared);
+  const named = extractName(prepared);
   const date = extractDate(prepared, now);
 
   const askingPhone =
@@ -916,13 +994,14 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
     !(phone && hasAny(prepared, ["my phone", "my number", "मेरा नंबर", "मेरा फोन", "ਮੇਰਾ ਨੰਬਰ", "ਮੇਰਾ ਫੋਨ"]));
 
   let intent: Intent = "unknown";
-  if (questionAboutTrialEligibility(prepared)) intent = "eligibility";
+  if (isStaffQuestion(prepared) && !isBookingCommand(prepared)) intent = "unknown";
+  else if (isDurationQuestion(prepared) && mentionsTrial(prepared)) intent = "unknown";
+  else if (isTrialInfoQuestion(prepared) || questionAboutTrialEligibility(prepared)) intent = "eligibility";
   else if (asksIfConfirmed(prepared)) intent = "status";
-  else if (hasAny(prepared, ELIGIBILITY_TERMS) && !hasAny(prepared, BOOK_VERBS) && !isBookingCommand(prepared)) intent = "eligibility";
+  else if (hasAny(prepared, ELIGIBILITY_TERMS) && !hasAny(prepared, BOOK_VERBS) && !isBookingCommand(prepared) && !isStaffQuestion(prepared)) intent = "eligibility";
   else if (hasAny(prepared, ADMISSION_TERMS) && !hasAny(prepared, BOOK_VERBS) && !isBookingCommand(prepared)) intent = "admission";
-  else if (isStaffQuestion(prepared) && !isBookingCommand(prepared)) intent = "unknown";
   else if (isTimingQuestion(prepared) && !isBookingCommand(prepared)) intent = "batches";
-  else if (hasAny(prepared, BOOK_TERMS) || isBookingCommand(prepared)) intent = "book";
+  else if ((hasAny(prepared, BOOK_TERMS) || isBookingCommand(prepared)) && !isTrialInfoQuestion(prepared)) intent = "book";
   else if (hasAny(prepared, FEE_TERMS)) intent = "fees";
   else if (askingPhone) intent = "phone";
   else if (hasAny(prepared, BATCH_TERMS) || period || time) intent = "batches";
@@ -938,7 +1017,8 @@ export function parseUtterance(text: string, now = new Date()): ParseResult {
     time,
     partySize,
     phone,
-    name,
+    name: named.name,
+    nameExplicit: named.explicit,
     date,
     greeting: false,
   };
