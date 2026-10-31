@@ -234,6 +234,7 @@ export function ChatWidget() {
 
   const copy = labels[language];
   const confirming = Boolean(draft.confirming && draft.course && draft.batch && draft.date);
+  const renamePending = Boolean(draft.pendingName);
   const booked = draft.course ? getCourse(draft.course) : undefined;
   const bookedView = booked ? courseCopy(booked, language === "pa" ? "en" : language) : null;
   const courseName = booked ? (language === "pa" ? booked.namePa : bookedView?.name ?? booked.name) : "";
@@ -349,7 +350,7 @@ export function ChatWidget() {
                 ]}
               />
               <div className="mt-3 flex gap-2">
-                <Button type="button" className="min-h-11 flex-1 bg-primary text-primary-foreground" disabled={pending} onClick={() => void send("yes", language === "hi" ? "अनुरोध भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request")}>
+                <Button type="button" className="min-h-11 flex-1 bg-primary text-primary-foreground" disabled={pending || renamePending} onClick={() => { if (renamePending) return; void send("yes", language === "hi" ? "अनुरोध भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request"); }}>
                   {language === "hi" ? "अनुरोध भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request"}
                 </Button>
                 <Button type="button" variant="outline" className="min-h-11" disabled={pending} onClick={() => void send("change", language === "hi" ? "संपादित करें" : language === "pa" ? "ਸੋਧੋ" : "Edit")}>

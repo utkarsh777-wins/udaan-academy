@@ -14,8 +14,8 @@ import punjabiContent from "@/content/academy.pa.json";
 import {
   classYear,
   explicitConfirmation,
-  explicitMetaOnly,
   explicitName,
+  explicitNameRejection,
   fold,
   includesTerm,
   isBookingCommand,
@@ -63,7 +63,7 @@ export function counsel(options: {
 }): CounselResult {
   const language = options.language;
   const now = options.now ?? new Date();
-  const incoming = options.draft ?? {};
+  let incoming = options.draft ?? {};
   const parsed = parseUtterance(options.text, now);
 
   if (isCancel(options.text) && hasStarted(incoming)) {
@@ -76,14 +76,26 @@ export function counsel(options: {
   }
 
   if (incoming.pendingName) {
-    const accept = isAffirmative(options.text) && !isHedged(options.text) && !isReadyToSend(options.text);
-    const next: Draft = { ...incoming, pendingName: undefined };
-    if (accept) next.name = incoming.pendingName;
-    return resumeDraft(next, language);
+    if (isRenameYes(options.text)) {
+      return resumeDraft({ ...incoming, name: incoming.pendingName, pendingName: undefined }, language);
+    }
+    if (isRenameNo(options.text)) {
+      return resumeDraft({ ...incoming, pendingName: undefined }, language);
+    }
+    incoming = { ...incoming, pendingName: undefined };
   }
 
-  if (hasStarted(incoming) && explicitMetaOnly(options.text) && !explicitName(options.text)) {
-    if (incoming.confirming && explicitConfirmation(options.text)) {
+  if (hasStarted(incoming) && explicitNameRejection(options.text)) {
+    return {
+      reply: correctNameAsk(language),
+      draft: { ...incoming, name: undefined, confirming: false, active: true, pendingName: undefined },
+      ready: false,
+      intent: "book",
+    };
+  }
+
+  if (hasStarted(incoming) && explicitConfirmation(options.text)) {
+    if (incoming.confirming) {
       return {
         reply: speak(language, holding(language)),
         draft: { ...incoming, confirming: false, active: true, pendingName: undefined },
@@ -130,7 +142,7 @@ export function counsel(options: {
     };
   }
 
-  if (incoming.confirming && mentionsChange(options.text) && !explicitName(options.text)) {
+  if (incoming.confirming && mentionsChange(options.text) && !explicitName(options.text) && !specifiesFieldChange(parsed)) {
     return {
       reply: academy.counsellor.changeField[language],
       draft: { ...incoming, active: true, confirming: false },
@@ -160,9 +172,14 @@ export function counsel(options: {
   const base = incoming.confirming ? { ...incoming, confirming: false } : incoming;
   const booking = parsed.intent === "book" || hasStarted(base) || incoming.confirming;
   if (!booking) {
+    const stated = explicitName(options.text);
+    const keepName = Boolean(stated && (isSubstantiveQuestion(options.text) || isOnlineQuestion(options.text)));
+    const kept = keepName ? { ...incoming, name: stated ?? undefined, active: true } : incoming;
+    const body = answer(parsed, options.text, language);
+    const missing = keepName ? firstMissing(kept) : null;
     return {
-      reply: answer(parsed, options.text, language),
-      draft: incoming,
+      reply: missing ? `${body} ${askFor(missing, language)}` : body,
+      draft: kept,
       ready: false,
       intent: isTrialContentQuestion(options.text) ? "eligibility" : parsed.intent,
     };
@@ -270,6 +287,12 @@ const YES = new Set([
   "ਠੀਕ",
   "ਠੀਕ ਹੈ",
   "ਠੀਕ ਹੈ ਜੀ",
+  "all correct",
+  "exactly right",
+  "sab sahi",
+  "ji haan",
+  "ji han",
+  "haan ji",
 ]);
 
 const CANCEL_PHRASES = [
@@ -318,7 +341,7 @@ function matchesCancel(source: string): boolean {
   const helpers = new Set(
     ["karo", "kar", "do", "करो", "कर", "दो", "दीजिए", "ਕਰੋ", "ਕਰ", "ਦਿਓ"].map((word) => word.normalize("NFC").toLowerCase()),
   );
-  const soft = new Set(["just", "ok", "okay"]);
+  const soft = new Set(["just", "ok", "okay", "actually"]);
   const raw = source.split(/\s+/).filter(Boolean);
   if (raw.length > 0 && raw.length <= 6 && CANCEL_PHRASES.includes(raw.join(" "))) return true;
   const withoutHelpers = raw.filter((word) => !helpers.has(word) && !CANCEL_FILLERS.has(word));
@@ -358,7 +381,33 @@ function isCancel(text: string): boolean {
     .replace(/बुकिंग|ਬੁਕਿੰਗ/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return matchesCancel(stripped);
+  if (matchesCancel(stripped)) return true;
+  const clauses = text
+    .normalize("NFC")
+    .split(/[.?!।,，]+/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return clauses.length > 1 && clauses.some((clause) => clause !== text.trim() && isCancel(clause));
+}
+
+function isRenameYes(text: string): boolean {
+  return isAffirmative(text) && !isHedged(text) && !isReadyToSend(text);
+}
+
+function isRenameNo(text: string): boolean {
+  if (isReadyToSend(text)) return true;
+  const trimmed = text.normalize("NFC").replace(/[।!?.,]+/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  return ["no", "nope", "nah", "nahi", "nahin", "नहीं", "नही", "ਨਹੀਂ", "ਨਾ"].includes(trimmed);
+}
+
+function correctNameAsk(language: Language): string {
+  if (language === "hi") return "सही नाम क्या है?";
+  if (language === "pa") return "ਸਹੀ ਨਾਂ ਕੀ ਹੈ?";
+  return "What is the correct name?";
+}
+
+function specifiesFieldChange(parsed: ParseResult): boolean {
+  return Boolean(parsed.phone || parsed.batch || parsed.date || parsed.courses.length === 1);
 }
 
 function isReadyToSend(text: string): boolean {
@@ -515,18 +564,26 @@ function trialContentReply(parsed: ParseResult, language: Language): string {
   const courses = parsed.courses.length
     ? academy.courses.filter((course) => parsed.courses.includes(course.slug))
     : academy.courses;
+  const paIncludes = punjabiContent.includes;
   const lines = courses.map((course) => {
     const hindi = hindiContent.courses[course.slug as keyof typeof hindiContent.courses];
-    const includes = language === "hi" && hindi?.includes?.length ? hindi.includes : course.includes;
+    const punjabi = paIncludes[course.slug as keyof typeof paIncludes];
+    const includes =
+      language === "hi" && hindi?.includes?.length
+        ? hindi.includes
+        : language === "pa" && punjabi?.length
+          ? punjabi
+          : course.includes;
     return `${shownCourse(course, language)}: ${includes.join(", ")}`;
   });
-  const intro =
-    language === "hi"
-      ? "ट्रायल उस बैच की एक फ्री क्लास है, पूरा कोर्स नहीं। क्लास में ये होता है"
-      : language === "pa"
-        ? "ਟਰਾਇਲ ਉਸ ਬੈਚ ਦੀ ਇੱਕ ਫ੍ਰੀ ਕਲਾਸ ਹੈ, ਪੂਰਾ ਕੋਰਸ ਨਹੀਂ। ਕਲਾਸ ਵਿੱਚ ਇਹ ਹੁੰਦਾ ਹੈ"
-        : "A trial is one free class of that batch, not the full course. The class covers";
-  return speak(language, [intro, ...lines]);
+  const list = lines.join("; ");
+  if (language === "hi") {
+    return speak("hi", ["ट्रायल उस बैच की एक फ्री क्लास है, पूरा कोर्स नहीं", `क्लास में ये होता है: ${list}`]);
+  }
+  if (language === "pa") {
+    return speak("pa", ["ਟਰਾਇਲ ਉਸ ਬੈਚ ਦੀ ਇੱਕ ਫ੍ਰੀ ਕਲਾਸ ਹੈ, ਪੂਰਾ ਕੋਰਸ ਨਹੀਂ", `ਕਲਾਸ ਵਿੱਚ ਇਹ ਹੁੰਦਾ ਹੈ: ${list}`]);
+  }
+  return speak("en", ["A trial is one free class of that batch, not the full course", `The class covers ${list}`]);
 }
 
 function trialFreeReply(language: Language, text: string): string {

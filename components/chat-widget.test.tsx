@@ -145,4 +145,43 @@ describe("chat launcher focus", () => {
     expect([...(host?.querySelectorAll("p") ?? [])].filter((node) => node.textContent === "Send request")).toHaveLength(1);
     vi.unstubAllGlobals();
   });
+
+  it("disables Send request while a rename is waiting", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          reply: "Change the name to 'Aman'?",
+          draft: {
+            confirming: true,
+            active: true,
+            pendingName: "Aman",
+            name: "Simran",
+            phone: "9876543210",
+            course: "ielts-pte",
+            batch: "morning",
+            date: "2026-11-20",
+          },
+        }),
+      })),
+    );
+    mount();
+    act(() => {
+      host?.querySelector("button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const input = host?.querySelector("#counsellor-message") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    await act(async () => {
+      setter?.call(input, "my name is Aman");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      host?.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const sendRequest = [...(host?.querySelectorAll("button") ?? [])].find((button) => button.textContent?.includes("Send request")) as HTMLButtonElement | undefined;
+    expect(sendRequest).toBeTruthy();
+    expect(sendRequest?.disabled).toBe(true);
+    vi.unstubAllGlobals();
+  });
 });

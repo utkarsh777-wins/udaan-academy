@@ -477,13 +477,8 @@ const NAME_META = new Set(
   ].map(fold),
 );
 
-function metaName(value: string): boolean {
-  const words = value.split(/\s+/).filter(Boolean);
-  return words.length > 0 && words.every((word) => NAME_META.has(fold(word)));
-}
-
 const NAME_PATTERNS: Array<{ pattern: RegExp; allowMixed: boolean }> = [
-  { pattern: /my name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
+  { pattern: /my name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: true },
   { pattern: /change (?:the )?name to\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
   { pattern: /the name is\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})/iu, allowMixed: false },
   { pattern: /^(?:spelled|spelt)\s+([\p{L}\p{M}][\p{L}\p{M} .'-]{1,60})$/iu, allowMixed: false },
@@ -542,14 +537,25 @@ function nameBesidePhone(source: string): string | null {
   return cleanName(segment);
 }
 
+const NAME_FILLERS = new Set(["now", "already", "actually", "just", "please", "ji", "जी", "ਜੀ", "plz"].map(fold));
+
+function stripNameFillers(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter((word) => word && !NAME_FILLERS.has(fold(word)))
+    .join(" ");
+}
+
 function tidyName(value: string): string {
   const cut = value.split(/[।?!]|\s+(?:and|aur|ਅਤੇ|phone|फोन|ਫੋਨ|,)/i)[0] ?? value;
-  return cut
-    .replace(/[।.!?]+$/g, "")
-    .replace(/^(?:spelled|spelt)\s+/i, "")
-    .replace(/(?:\s+(?:है|हैं|हूँ|हूं|जी|hai|ਹੈ|ਹਾਂ|ਜੀ))+$/iu, "")
-    .replace(/(?:\s+(?:only|ही|ਹੀ))+$/iu, "")
-    .trim();
+  return stripNameFillers(
+    cut
+      .replace(/[।.!?]+$/g, "")
+      .replace(/^(?:spelled|spelt)\s+/i, "")
+      .replace(/(?:\s+(?:है|हैं|हूँ|हूं|जी|hai|ਹੈ|ਹਾਂ|ਜੀ))+$/iu, "")
+      .replace(/(?:\s+(?:only|ही|ਹੀ))+$/iu, "")
+      .trim(),
+  );
 }
 
 function cleanName(value: string, allowMixed = false): string | null {
@@ -603,37 +609,58 @@ const NAME_REJECT = new Set(
   ["wrong", "misspelled", "गलत", "ਗਲਤ", "kya", "kaun", "what", "who", "क्या", "कौन", "ਕੀ", "ਕੌਣ"].map(fold),
 );
 
+function flattenMessage(text: string): string {
+  return text.normalize("NFC").replace(/[.?!।,，]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isNameChangeCommand(text: string): boolean {
+  return (
+    /change\s+(?:the\s+)?name\s+to\b/iu.test(text) ||
+    /(?:नाम|ਨਾਮ|ਨਾਂ).{0,16}(?:बदल|ਬਦਲ)|(?:बदल|ਬਦਲ).{0,24}(?:नाम|ਨਾਮ|ਨਾਂ)/u.test(text)
+  );
+}
+
+const NAME_LEAD =
+  /^(?:the name is|my name is|mera naam|मेरा नाम(?:\s+है)?|ਮੇਰਾ ਨਾਂ|ਮੇਰਾ ਨਾਮ|(?:name|नाम)\s*[:：])\s+/iu;
+
+const NAME_WRONG = new Set(["wrong", "misspelled", "galat", "incorrect", "गलत", "ਗਲਤ"].map(fold));
+
+function confirmWords(value: string): string[] {
+  const trimmed = stripNameFillers(
+    value
+      .replace(/^(?:spelled|spelt)\s+/i, "")
+      .replace(/(?:\s+(?:है|हैं|हूँ|हूं|जी|hai|ਹੈ|ਹਾਂ|ਜੀ))+$/iu, "")
+      .replace(/(?:\s+(?:only|ही|ਹੀ))+$/iu, "")
+      .trim(),
+  );
+  return trimmed.split(/\s+/).filter(Boolean);
+}
+
 export function explicitMetaOnly(text: string): boolean {
-  for (const part of text.split(/[.?!।]+/u)) {
-    const source = part.normalize("NFC").trim();
-    if (!source) continue;
-    for (const { pattern } of NAME_PATTERNS) {
-      const match = source.match(pattern);
-      if (!match) continue;
-      const tidy = tidyName(match[1] ?? "");
-      if (tidy && metaName(tidy)) return true;
-    }
-  }
-  return false;
+  return explicitConfirmation(text);
 }
 
 export function explicitConfirmation(text: string): boolean {
-  let confirm = false;
-  for (const part of text.split(/[.?!।]+/u)) {
-    const source = part.normalize("NFC").trim();
-    if (!source) continue;
-    for (const { pattern } of NAME_PATTERNS) {
-      const match = source.match(pattern);
-      if (!match) continue;
-      const tidy = tidyName(match[1] ?? "");
-      if (!tidy) continue;
-      const words = tidy.split(/\s+/).filter(Boolean);
-      if (words.some((word) => NAME_REJECT.has(fold(word)))) return false;
-      if (!words.every((word) => NAME_CONFIRM.has(fold(word)))) return false;
-      confirm = true;
-    }
-  }
-  return confirm;
+  if (/[?？]/.test(text) || isNameChangeCommand(text)) return false;
+  const flat = flattenMessage(text);
+  if (!flat) return false;
+  const bare = confirmWords(flat);
+  if (bare.length > 0 && bare.every((word) => NAME_CONFIRM.has(fold(word)))) return true;
+  if (!NAME_LEAD.test(flat)) return false;
+  const rest = confirmWords(flat.replace(NAME_LEAD, ""));
+  if (rest.length === 0 || rest.some((word) => NAME_WRONG.has(fold(word)) || NAME_REJECT.has(fold(word)))) return false;
+  return rest.every((word) => NAME_CONFIRM.has(fold(word)));
+}
+
+export function explicitNameRejection(text: string): boolean {
+  if (isNameChangeCommand(text)) return false;
+  const flat = flattenMessage(text);
+  const source = NAME_LEAD.test(flat) ? flat.replace(NAME_LEAD, "") : flat;
+  const words = confirmWords(source);
+  if (words.length === 0) return false;
+  const joined = words.map((word) => fold(word)).join(" ");
+  if (joined === "not right" || joined === "not correct") return true;
+  return words.every((word) => NAME_WRONG.has(fold(word)));
 }
 
 const RESERVED_NAMES = new Set(
