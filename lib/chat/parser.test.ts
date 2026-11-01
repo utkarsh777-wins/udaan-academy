@@ -103,6 +103,7 @@ describe("greetings, fees, phone, and off-topic", () => {
   it("recognises a fees question in each language", () => {
     expect(parseUtterance("what is the fee").intent).toBe("fees");
     expect(parseUtterance("फीस कितनी है").intent).toBe("fees");
+    expect(parseUtterance("फ़ीस कितनी है").intent).toBe("fees");
     expect(parseUtterance("ਫੀਸ ਕਿੰਨੀ ਹੈ").intent).toBe("fees");
   });
 
