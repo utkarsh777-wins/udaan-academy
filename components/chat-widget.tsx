@@ -35,7 +35,7 @@ const labels: Record<Language, { title: string; subtitle: string; send: string; 
     title: "काउंसलर",
     subtitle: "तुरंत जवाब · बुकिंग डेस्क पक्की करता है",
     send: "भेजें",
-    placeholder: "संदेश लिखिए",
+    placeholder: "मैसेज लिखिए",
     close: "काउंसलर बंद करें",
     launcher: "काउंसलर से पूछें",
   },
@@ -327,13 +327,13 @@ export function ChatWidget() {
             <div className="px-4 pb-3">
               <p className="mb-2 text-sm text-muted-foreground">
                 {language === "hi"
-                  ? "भेजने से पहले जाँच लीजिए।"
+                  ? "भेजने से पहले चेक कर लीजिए।"
                   : language === "pa"
                     ? "ਭੇਜਣ ਤੋਂ ਪਹਿਲਾਂ ਵੇਖ ਲਵੋ।"
                     : "Check this before it goes to the front desk."}
               </p>
               <Ticket
-                label={language === "hi" ? "ट्रायल क्लास का विवरण" : language === "pa" ? "ਟਰਾਇਲ ਕਲਾਸ ਦਾ ਵੇਰਵਾ" : "Trial class details"}
+                label={language === "hi" ? "ट्रायल क्लास की डिटेल" : language === "pa" ? "ਟਰਾਇਲ ਕਲਾਸ ਦਾ ਵੇਰਵਾ" : "Trial class details"}
                 eyebrow={language === "hi" ? "फ़्री ट्रायल क्लास" : language === "pa" ? "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ" : "Free trial class"}
                 from={language === "hi" ? "फगवाड़ा" : language === "pa" ? "ਫਗਵਾੜਾ" : "Phagwara"}
                 to={courseName}
@@ -346,15 +346,15 @@ export function ChatWidget() {
                     value: draft.batch ? (language === "en" ? batchLabel(draft.batch, "en").replace(/^./, (letter) => letter.toUpperCase()) : batchLabel(draft.batch, language)) : bookedBatch.label,
                   },
                   { label: language === "hi" ? "तारीख" : language === "pa" ? "ਤਾਰੀਖ" : "Date", value: draft.date ? formatLongDate(draft.date, language) : "", mono: true },
-                  { label: language === "hi" ? "समय" : language === "pa" ? "ਸਮਾਂ" : "Time", value: formatBatchTime(bookedBatch.time, language), mono: true },
+                  { label: language === "hi" ? "टाइम" : language === "pa" ? "ਸਮਾਂ" : "Time", value: formatBatchTime(bookedBatch.time, language), mono: true },
                 ]}
               />
               <div className="mt-3 flex gap-2">
-                <Button type="button" className="min-h-11 flex-1 bg-primary text-primary-foreground" disabled={pending || renamePending} onClick={() => { if (renamePending) return; void send("yes", language === "hi" ? "अनुरोध भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request"); }}>
-                  {language === "hi" ? "अनुरोध भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request"}
+                <Button type="button" className="min-h-11 flex-1 bg-primary text-primary-foreground" disabled={pending || renamePending} onClick={() => { if (renamePending) return; void send("yes", language === "hi" ? "रिक्वेस्ट भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request"); }}>
+                  {language === "hi" ? "रिक्वेस्ट भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request"}
                 </Button>
-                <Button type="button" variant="outline" className="min-h-11" disabled={pending} onClick={() => void send("change", language === "hi" ? "संपादित करें" : language === "pa" ? "ਸੋਧੋ" : "Edit")}>
-                  {language === "hi" ? "संपादित करें" : language === "pa" ? "ਸੋਧੋ" : "Edit"}
+                <Button type="button" variant="outline" className="min-h-11" disabled={pending} onClick={() => void send("change", language === "hi" ? "एडिट करें" : language === "pa" ? "ਸੋਧੋ" : "Edit")}>
+                  {language === "hi" ? "एडिट करें" : language === "pa" ? "ਸੋਧੋ" : "Edit"}
                 </Button>
               </div>
             </div>

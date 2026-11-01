@@ -144,7 +144,7 @@ export function TrialForm() {
   if (reference && shown && chosen) {
     return (
       <div className="rounded-[20px] border border-border bg-card p-6">
-        <p className="inline-flex rounded-full bg-success-bg px-2 py-1 text-sm font-semibold text-success">{hi ? "अनुरोध भेज दिया" : "Request sent"}</p>
+        <p className="inline-flex rounded-full bg-success-bg px-2 py-1 text-sm font-semibold text-success">{hi ? "रिक्वेस्ट भेज दी" : "Request sent"}</p>
         <p className="num mt-3 text-lg">{reference}</p>
         <p className="mt-2 text-muted-foreground">{hi ? "डेस्क फ़ोन करके पक्का करेगा।" : "The front desk will call you to confirm."}</p>
         <Ticket
@@ -157,7 +157,7 @@ export function TrialForm() {
             { label: hi ? "कोर्स" : "Course", value: shown.name },
             { label: hi ? "बैच" : "Batch", value: chosen.label },
             { label: hi ? "तारीख" : "Date", value: formatLongDate(date, language), mono: true },
-            { label: hi ? "समय" : "Time", value: chosen.time, mono: true },
+            { label: hi ? "टाइम" : "Time", value: chosen.time, mono: true },
           ]}
         />
       </div>
@@ -181,7 +181,7 @@ export function TrialForm() {
         noValidate
       >
         <p className="mb-6 text-sm text-muted-foreground">
-          <span className="text-margin">1</span> {hi ? "कोर्स" : "Course"} · <span className="text-margin">2</span> {hi ? "विवरण" : "Your details"} · <span className="text-margin">3</span> {hi ? "पक्का करें" : "Confirm"}
+          <span className="text-margin">1</span> {hi ? "कोर्स" : "Course"} · <span className="text-margin">2</span> {hi ? "डिटेल" : "Your details"} · <span className="text-margin">3</span> {hi ? "पक्का करें" : "Confirm"}
         </p>
         <fieldset ref={courseRef} tabIndex={-1} className="mb-5 outline-none" aria-invalid={Boolean(errors.course)} aria-describedby={errors.course ? courseErrorId : undefined}>
           <legend className="mb-2 font-semibold">{copy.formCourse}</legend>
@@ -341,20 +341,20 @@ export function TrialForm() {
                 { label: hi ? "नाम" : "Name", value: name },
                 { label: hi ? "फ़ोन" : "Phone", value: phone, mono: true },
                 { label: hi ? "तारीख" : "Date", value: formatLongDate(date, language), mono: true },
-                { label: hi ? "समय" : "Time", value: chosen.time, mono: true },
+                { label: hi ? "टाइम" : "Time", value: chosen.time, mono: true },
               ]}
             />
           </div>
         ) : null}
         <button type="submit" disabled={pending} className="h-[52px] w-full rounded-[10px] bg-primary font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
-          {pending ? copy.sending : review ? (hi ? "अनुरोध भेजें" : "Send request") : hi ? "बुकिंग देखें" : "Review booking"} →
+          {pending ? copy.sending : review ? (hi ? "रिक्वेस्ट भेजें" : "Send request") : hi ? "बुकिंग देखें" : "Review booking"} →
         </button>
         {review ? (
           <button type="button" className="mt-3 h-11 w-full rounded-[10px] border border-border" onClick={() => setReview(false)}>
-            {hi ? "संपादित करें" : "Edit"}
+            {hi ? "एडिट करें" : "Edit"}
           </button>
         ) : null}
-        <p className="mt-3 text-sm text-muted-foreground">{hi ? "नंबर सिर्फ़ इस ट्रायल की पुष्टि के लिए है। ईमेल या एसएमएस अपने आप नहीं जाता।" : "We only use your number to confirm this trial. No email or SMS is sent automatically."}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{hi ? "नंबर सिर्फ़ इस ट्रायल को पक्का करने के लिए है। ईमेल या एसएमएस अपने आप नहीं जाता।" : "We only use your number to confirm this trial. No email or SMS is sent automatically."}</p>
       </form>
       <aside className="lg:sticky lg:top-24">
         <p className="mb-3 font-semibold">{hi ? "आपका ट्रायल पास" : "Your trial pass"}</p>
@@ -367,7 +367,7 @@ export function TrialForm() {
             { label: hi ? "कोर्स" : "Course", value: shown?.name ?? "—" },
             { label: hi ? "बैच" : "Batch", value: chosen?.label ?? "—" },
             { label: hi ? "तारीख" : "Date", value: date ? formatLongDate(date, language) : "—", mono: true },
-            { label: hi ? "समय" : "Time", value: chosen?.time ?? "—", mono: true },
+            { label: hi ? "टाइम" : "Time", value: chosen?.time ?? "—", mono: true },
           ]}
         />
       </aside>

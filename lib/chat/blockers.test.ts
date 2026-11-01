@@ -694,7 +694,7 @@ describe("blocker regressions", () => {
     }
 
     const fees = counsel({ text: "JEE fees", language: "hi", now });
-    expect(fees.reply).toContain("मासिक");
+    expect(fees.reply).toContain("महीने की");
     expect(fees.reply).not.toContain("(Monthly)");
     const punjabiFees = counsel({ text: "JEE fees", language: "pa", now });
     expect(punjabiFees.reply).toContain("ਮਹੀਨਾਵਾਰ");

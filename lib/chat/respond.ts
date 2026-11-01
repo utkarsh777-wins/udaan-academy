@@ -800,13 +800,13 @@ function isHedged(text: string): boolean {
 }
 
 function cancelledReply(language: Language): string {
-  if (language === "hi") return speak("hi", ["ट्रायल का अनुरोध रोक दिया", "कुछ नहीं भेजा गया"]);
+  if (language === "hi") return speak("hi", ["ट्रायल की रिक्वेस्ट रोक दी", "कुछ नहीं भेजा गया"]);
   if (language === "pa") return speak("pa", ["ਟਰਾਇਲ ਦੀ ਬੇਨਤੀ ਰੋਕ ਦਿੱਤੀ", "ਕੁਝ ਨਹੀਂ ਭੇਜਿਆ"]);
   return speak("en", ["I’ve stopped this trial request", "Nothing was sent"]);
 }
 
 function clearYesReply(language: Language): string {
-  if (language === "hi") return speak("hi", ["भेजना हो तो साफ हाँ लिखिए"]);
+  if (language === "hi") return speak("hi", ["भेजना हो तो साफ़ हाँ लिखिए"]);
   if (language === "pa") return speak("pa", ["ਭੇਜਣਾ ਹੋਵੇ ਤਾਂ ਸਾਫ਼ ਹਾਂ ਲਿਖੋ"]);
   return speak("en", ["Please say yes if I should send this"]);
 }
@@ -930,7 +930,7 @@ function facultyAnswer(parsed: ParseResult, language: Language): string {
   });
   const note =
     language === "hi"
-      ? "ये नाम टीचरों की जगह खड़े हैं, फ़ोटो नहीं"
+      ? "ये नाम टीचरों की जगह लिखे हैं, फ़ोटो नहीं"
       : language === "pa"
         ? "ਇਹ ਨਾਮ ਅਧਿਆਪਕਾਂ ਦੀ ਥਾਂ ਖੜ੍ਹੇ ਹਨ, ਫੋਟੋ ਨਹੀਂ"
         : "These names stand in for the teachers. They are not photographs";
@@ -1188,7 +1188,7 @@ function askFor(field: "name" | "phone" | "course" | "batch" | "date", language:
 
 function holding(language: Language): string[] {
   if (language === "hi") {
-    return ["डिटेल मिल गई", "मैं फ्री ट्रायल क्लास का अनुरोध अभी भेज रही हूँ", "बुकिंग मैं खुद कन्फर्म नहीं करूँगी, अगला जवाब सेंटर की तरफ से होगा"];
+    return ["डिटेल मिल गई", "मैं फ्री ट्रायल क्लास की रिक्वेस्ट अभी भेज रही हूँ", "बुकिंग मैं खुद कन्फर्म नहीं करूँगी, अगला जवाब सेंटर की तरफ से होगा"];
   }
   if (language === "pa") {
     return ["ਡਿਟੇਲ ਮਿਲ ਗਈ", "ਮੈਂ ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਦੀ ਬੇਨਤੀ ਹੁਣੇ ਭੇਜ ਰਹੀ ਹਾਂ", "ਬੁਕਿੰਗ ਮੈਂ ਖੁਦ ਕਨਫਰਮ ਨਹੀਂ ਕਰਾਂਗੀ, ਅਗਲਾ ਜਵਾਬ ਸੈਂਟਰ ਵੱਲੋਂ ਹੋਵੇਗਾ"];
@@ -1207,7 +1207,7 @@ function phoneAnswer(language: Language): string {
   if (language === "hi") {
     return speak("hi", [
       `यहाँ लिखा फोन ${academy.phone} है`,
-      "यह नंबर असली लाइन नहीं है",
+      "यह नंबर असली नहीं है",
       "फ्री ट्रायल क्लास के लिए अपना नंबर यहीं लिख दीजिए",
     ]);
   }
@@ -1231,7 +1231,7 @@ function partyAnswer(parsed: ParseResult, language: Language): string {
   if (language === "hi") {
     return speak("hi", [
       `आप ${count} लोग हैं`,
-      "यह समय नहीं, संख्या है",
+      "यह टाइम नहीं, गिनती है",
       batch ? `${batch} का बैच भी नोट कर लिया` : "वीकेंड बैच में साथ बैठना आसान रहता है",
       "कौन सा कोर्स चाहिए?",
     ]);
@@ -1257,7 +1257,7 @@ function feesAnswer(parsed: ParseResult, language: Language): string {
   const courses = selectedCourses(parsed);
   const lines = courses.map((course) => feeSentence(course, language));
   if (language === "hi") {
-    return speak("hi", ["फीस अंदाज़े की है, डेस्क पर यही रेंज बताई जाती है", ...lines]);
+    return speak("hi", ["फीस अंदाज़े की है, डेस्क पर यही रेंज बताते हैं", ...lines]);
   }
   if (language === "pa") {
     return speak("pa", ["ਫੀਸ ਅੰਦਾਜ਼ੇ ਦੀ ਹੈ, ਡੈਸਕ ਉੱਤੇ ਇਹੀ ਰੇਂਜ ਦੱਸੀ ਜਾਂਦੀ ਹੈ", ...lines]);
@@ -1268,7 +1268,7 @@ function feesAnswer(parsed: ParseResult, language: Language): string {
 function eligibilityAnswer(parsed: ParseResult, language: Language): string {
   const courses = selectedCourses(parsed);
   if (courses.length === 0 || courses.length === academy.courses.length) {
-    if (language === "hi") return "किस कोर्स की शर्त देखनी है?";
+    if (language === "hi") return "किस कोर्स की एलिजिबिलिटी देखनी है?";
     if (language === "pa") return "ਕਿਸ ਕੋਰਸ ਦੀ ਸ਼ਰਤ ਦੇਖਣੀ ਹੈ?";
     return speak("en", ["Which course should I check eligibility for?"]);
   }
@@ -1374,7 +1374,7 @@ function seniorClass(language: Language): string {
   if (language === "hi") {
     return speak("hi", [
       "क्लास 11 या 12 के लिए तीन रास्ते हैं",
-      "मेडिकल हो तो NEET फाउंडेशन, इंजीनियरिंग हो तो JEE फाउंडेशन, स्कूल की परीक्षा हो तो पंजाब बोर्ड",
+      "मेडिकल हो तो NEET फाउंडेशन, इंजीनियरिंग हो तो JEE फाउंडेशन, स्कूल का एग्ज़ाम हो तो पंजाब बोर्ड",
     ]);
   }
   if (language === "pa") {
@@ -1429,9 +1429,12 @@ function feeSentence(course: Course, language: Language): string {
             ? punjabiContent.fees[fee.label as keyof typeof punjabiContent.fees] ?? fee.label
             : fee.label;
       if (language === "hi") {
+        const monthly = label === "मासिक" || label === "महीने की";
         return fee.period === "package"
-          ? `${name} की फीस पूरे पैकेज की ${low} से ${high} है, कोर्स ${duration} का है`
-          : `${name} (${label}) की फीस महीने की ${low} से ${high} है`;
+          ? `${name} का पूरा पैकेज ${low} से ${high} है, कोर्स ${duration} का है`
+          : monthly
+            ? `${name} की महीने की फीस ${low} से ${high} है`
+            : `${name} (${label}) की महीने की फीस ${low} से ${high} है`;
       }
       if (language === "pa") {
         return fee.period === "package"
@@ -1596,7 +1599,7 @@ export function savedBookingReply(
   const batch = batchLabel(booking.batch, language);
   if (language === "hi") {
     return speak("hi", [
-      "फ्री ट्रायल क्लास का अनुरोध दर्ज हो गया है",
+      "फ्री ट्रायल क्लास की रिक्वेस्ट सेव हो गई है",
       `रेफरेंस ${booking.id} है`,
       `${booking.name}, ${courseName}, ${batch} बैच, ${when}`,
       "यह साइट ईमेल नहीं भेजती, रेफरेंस संभाल कर रखिए",
@@ -1633,7 +1636,7 @@ export function bookingErrorReply(
       return speak("en", ["Too many attempts for this number", "Wait ten minutes and try again"]);
     }
     if (limit === "site") {
-      if (language === "hi") return speak("hi", ["इस घंटे में बहुत अनुरोध आ चुके हैं", "थोड़ी देर बाद फिर लिखिए"]);
+      if (language === "hi") return speak("hi", ["इस घंटे में बहुत रिक्वेस्ट आ चुकी हैं", "थोड़ी देर बाद फिर लिखिए"]);
       if (language === "pa") return speak("pa", ["ਇਸ ਘੰਟੇ ਵਿੱਚ ਬਹੁਤ ਬੇਨਤੀਆਂ ਆ ਚੁੱਕੀਆਂ ਹਨ", "ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਫਿਰ ਲਿਖੋ"]);
       return speak("en", ["Too many trial requests this hour", "Try again later"]);
     }
@@ -1732,7 +1735,7 @@ export function formServerMessage(
 }
 
 export function languageSwitched(language: Language): string {
-  if (language === "hi") return speak("hi", ["अब मैं हिन्दी में बात करूँगी"]);
+  if (language === "hi") return speak("hi", ["अब मैं हिंदी में बात करूँगी"]);
   if (language === "pa") return speak("pa", ["ਹੁਣ ਮੈਂ ਪੰਜਾਬੀ ਵਿੱਚ ਗੱਲ ਕਰਾਂਗੀ"]);
   return speak("en", ["I’ll continue in English"]);
 }

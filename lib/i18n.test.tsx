@@ -81,11 +81,11 @@ function page(node: React.ReactNode, language: "en" | "hi" = "hi") {
 describe("site language", () => {
   it("renders Hindi copy on every page route", () => {
     const checks: Array<[string, () => React.ReactNode, string]> = [
-      ["home", () => <HomeView />, "सामने वाली परीक्षा"],
+      ["home", () => <HomeView />, "आने वाले एग्ज़ाम"],
       ["courses", () => <CoursesIntro />, "पाँच कोर्स"],
       ["course", () => <CourseView slug="ielts-pte" />, "मॉक टेस्ट"],
       ["faculty", () => <FacultyView />, "कौन क्या पढ़ाता है"],
-      ["fees", () => <FeesView />, "पूछने से पहले फ़ीस"],
+      ["fees", () => <FeesView />, "फ़ीस पहले से लिखी है"],
       ["contact", () => <ContactView />, "एक क्लास बुक करें"],
       ["bookings", () => (<><BookingsIntro /><BookingsClosed /></>), "यह पेज तब तक बंद रहता है"],
     ];
@@ -125,7 +125,7 @@ describe("site language", () => {
     expect(document.cookie).toContain("udaan-lang=hi");
     expect(siteLanguageCookie("hi")).toContain("SameSite=Lax");
     expect(document.documentElement.lang).toBe("hi");
-    expect(host?.textContent).toContain("सामने वाली परीक्षा");
+    expect(host?.textContent).toContain("आने वाले एग्ज़ाम");
   });
 });
 
@@ -178,7 +178,7 @@ describe("translated labels", () => {
         "hi",
       ),
     );
-    expect(host?.querySelector("[role=group]")?.getAttribute("aria-label")).toBe("ट्रायल क्लास का विवरण");
+    expect(host?.querySelector("[role=group]")?.getAttribute("aria-label")).toBe("ट्रायल क्लास की डिटेल");
     act(() => root?.unmount());
     host?.remove();
 

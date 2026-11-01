@@ -23,7 +23,7 @@ export function FeesView() {
       <div className="ruled border-b border-border py-14">
         <div className="mx-auto max-w-[1240px] px-5 min-[768px]:px-8 min-[1920px]:max-w-[1360px]">
           <p className="eyebrow">{hi ? "फ़ीस और बैच" : "Fees & batches"}</p>
-          <h1 className="mt-3 font-heading text-[clamp(32px,4.2vw,50px)] font-bold">{hi ? "पूछने से पहले फ़ीस।" : "Fees before you ask."}</h1>
+          <h1 className="mt-3 font-heading text-[clamp(32px,4.2vw,50px)] font-bold">{hi ? "फ़ीस पहले से लिखी है।" : "Fees before you ask."}</h1>
           <p className="lead mt-3 max-w-[62ch] text-[19px] text-muted-foreground">{blocks.pages.feesIntro}</p>
         </div>
       </div>
@@ -55,7 +55,7 @@ export function FeesView() {
 
         <div>
           <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-            <h2 className="font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "बैच का समय" : "Batch timings"}</h2>
+            <h2 className="font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "बैच टाइमिंग" : "Batch timings"}</h2>
             <div className="flex flex-wrap gap-1.5">
               {["morning", "evening", "weekend"].map((id) => (
                 <button

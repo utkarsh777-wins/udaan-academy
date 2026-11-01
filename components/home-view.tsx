@@ -24,7 +24,7 @@ export function HomeView() {
           <div>
             <p className="eyebrow">{hi ? "जी.टी. रोड, फगवाड़ा · IELTS · JEE · NEET · PSEB" : "GT Road, Phagwara · IELTS · JEE · NEET · PSEB"}</p>
             <h1 className="mt-4 max-w-[16ch] font-heading text-[clamp(30px,5.2vw,60px)] leading-[1.08] font-extrabold">
-              {hi ? "सामने वाली परीक्षा के लिए छोटे बैच।" : "Small batches for the exam in front of you."}
+              {hi ? "आने वाले एग्ज़ाम के लिए छोटे बैच।" : "Small batches for the exam in front of you."}
             </h1>
             <p className="lead mt-5 max-w-[56ch] text-[19px] text-muted-foreground">{blocks.pages.heroBody}</p>
             <div className="mt-8 flex flex-col gap-3 min-[420px]:flex-row">
@@ -42,7 +42,7 @@ export function HomeView() {
           </div>
           <div className="relative overflow-hidden rounded-[14px] border border-border bg-card shadow-md">
             <div className="flex items-baseline justify-between border-b border-border px-5 py-4">
-              <strong className="font-semibold">{hi ? "बैच का समय" : "Batch timings"}</strong>
+              <strong className="font-semibold">{hi ? "बैच टाइमिंग" : "Batch timings"}</strong>
               <span className="num text-[13px] text-muted-foreground">{hi ? "नवंबर 2026" : "Nov 2026"}</span>
             </div>
             <table className="w-full text-[14.5px]">
@@ -50,7 +50,7 @@ export function HomeView() {
                 <tr className="text-muted-foreground">
                   <th className="eyebrow px-5 py-2 text-left font-medium">{hi ? "कोर्स" : "Course"}</th>
                   <th className="eyebrow px-5 py-2 text-left font-medium">{hi ? "बैच" : "Batch"}</th>
-                  <th className="eyebrow px-5 py-2 text-left font-medium">{hi ? "समय" : "Time"}</th>
+                  <th className="eyebrow px-5 py-2 text-left font-medium">{hi ? "टाइम" : "Time"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -82,8 +82,8 @@ export function HomeView() {
         <div className="mx-auto max-w-[1240px] px-5 min-[768px]:px-8 min-[1920px]:max-w-[1360px]">
           <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
             <div>
-              <p className="eyebrow">{hi ? "अपना रास्ता चुनें" : "Choose your route"}</p>
-              <h2 className="mt-2 font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "चार रास्ते, जी.टी. रोड पर एक ही इमारत।" : "Four routes, one building on GT Road."}</h2>
+              <p className="eyebrow">{hi ? "अपना रास्ता चुनिए" : "Choose your route"}</p>
+              <h2 className="mt-2 font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "चार रास्ते, जी.टी. रोड पर एक ही बिल्डिंग।" : "Four routes, one building on GT Road."}</h2>
               <p className="mt-2 max-w-[52ch] text-muted-foreground">{hi ? "हर कोर्स अपनी फ़ीस और बैच पहले बताता है।" : "Every course lists its batches and its fee before you ask."}</p>
             </div>
             <Link href="/courses" className="inline-flex h-11 items-center rounded-[10px] border border-border px-4 font-semibold">
@@ -109,7 +109,7 @@ export function HomeView() {
                     <dt className="text-muted-foreground">{hi ? "बैच" : "Batches"}</dt>
                     <dd className="text-right">{shown.batches.length}</dd>
                   </dl>
-                  <span className="font-semibold text-primary">{hi ? "कोर्स विवरण" : "Course details"} →</span>
+                  <span className="font-semibold text-primary">{hi ? "कोर्स डिटेल" : "Course details"} →</span>
                 </Link>
               );
             })}
@@ -124,9 +124,9 @@ export function HomeView() {
           </h2>
           <ol className="grid border-t border-foreground md:grid-cols-3">
             {[
-              [hi ? "कोर्स और बैच चुनें" : "Pick a course and batch", hi ? "समय और फ़ीस पेज पर लिखी है।" : "The time and the fee are already on the page."],
-              [hi ? "एक पूरी क्लास बैठें" : "Attend one full class", hi ? "सीट डेस्क पर रखी जाती है।" : "The front desk holds the seat."],
-              [hi ? "डेस्क पर फ़ैसला करें" : "Decide at the desk", hi ? "ऑनलाइन पेमेंट नहीं।" : "No online payment. Pay only if you enrol."],
+              [hi ? "कोर्स और बैच चुनिए" : "Pick a course and batch", hi ? "टाइम और फ़ीस पेज पर लिखी है।" : "The time and the fee are already on the page."],
+              [hi ? "एक पूरी क्लास बैठिए" : "Attend one full class", hi ? "सीट डेस्क पर रखी जाती है।" : "The front desk holds the seat."],
+              [hi ? "डेस्क पर तय करें" : "Decide at the desk", hi ? "ऑनलाइन पेमेंट नहीं। एडमिशन के बाद ही फ़ीस।" : "No online payment. Pay only if you enrol."],
             ].map(([title, body], index) => (
               <li key={title} className="border-b border-border py-6 md:border-r md:border-b-0 md:pr-7 md:pl-0 last:md:border-r-0">
                 <p className="num text-[13px] text-margin">Q{index + 1}.</p>
@@ -140,15 +140,15 @@ export function HomeView() {
 
       <section className="border-b border-border py-14 lg:py-[88px]">
         <div className="mx-auto max-w-[1240px] px-5 min-[768px]:px-8 min-[1920px]:max-w-[1360px]">
-          <h2 className="mb-8 font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "जो वादा निभाया जा सकता है।" : "Plain promises we can keep."}</h2>
+          <h2 className="mb-8 font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "जो बात हम निभा सकते हैं।" : "Plain promises we can keep."}</h2>
           <div className="grid overflow-hidden rounded-[14px] border border-border bg-card md:grid-cols-3">
             {(hi
               ? [
                   ["छोटे बैच", "क्लास में बात सुनी जा सके, इतना छोटा ग्रुप।"],
-                  ["डाउट का तय घंटा", "शाम के बाद और रविवार सुबह।"],
-                  ["मॉक अभ्यास है", "स्कोर का अनुमान नहीं।"],
-                  ["फ़ीस दीवार पर", "डेस्क पर नई रकम नहीं जुड़ती।"],
-                  ["तीन भाषाएँ", "अंग्रेज़ी, हिन्दी और पंजाबी।"],
+                  ["डाउट का फिक्स टाइम", "शाम के बैच के बाद और रविवार सुबह।"],
+                  ["मॉक टेस्ट प्रैक्टिस है", "स्कोर का अनुमान नहीं।"],
+                  ["फ़ीस लिखी हुई है", "जो यहाँ नहीं लिखा, वह डेस्क पर नहीं जुड़ता।"],
+                  ["तीन भाषाएँ", "अंग्रेज़ी, हिंदी और पंजाबी।"],
                   ["जी.टी. रोड पर", "फगवाड़ा, LPU से थोड़ी दूर।"],
                 ]
               : [
@@ -174,22 +174,22 @@ export function HomeView() {
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>
               <h2 className="font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "कौन क्या पढ़ाता है" : "Who teaches what."}</h2>
-              <p className="mt-2 text-muted-foreground">{hi ? "प्रोफ़ाइल तब जोड़ी जाएगी जब शिक्षक खुद मंज़ूर करें।" : "Teacher profiles are added once each teacher approves their own text."}</p>
+              <p className="mt-2 text-muted-foreground">{hi ? "प्रोफ़ाइल तब जोड़ी जाएगी जब टीचर खुद मंज़ूर करें।" : "Teacher profiles are added once each teacher approves their own text."}</p>
             </div>
-            <Link href="/faculty" className="font-semibold text-primary">{hi ? "शिक्षक" : "Faculty page"} →</Link>
+            <Link href="/faculty" className="font-semibold text-primary">{hi ? "फैकल्टी" : "Faculty page"} →</Link>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
               ["IE", hi ? "IELTS और स्पोकन इंग्लिश" : "IELTS & Spoken English"],
               ["PH", hi ? "फ़िज़िक्स" : "Physics"],
               ["CB", hi ? "केमिस्ट्री और बायोलॉजी" : "Chemistry & Biology"],
-              ["MA", hi ? "गणित" : "Mathematics"],
+              ["MA", hi ? "मैथ्स" : "Mathematics"],
             ].map(([mark, role]) => (
               <article key={mark} className="rounded-[14px] border border-border bg-card p-6">
                 <div className="grid aspect-[4/3] place-items-center rounded-[10px] border border-dashed border-border bg-muted">
                   <span className="font-heading text-3xl text-muted-foreground">{mark}</span>
                 </div>
-                <p className="eyebrow mt-4">{hi ? "विषय" : "Subject"}</p>
+                <p className="eyebrow mt-4">{hi ? "सब्जेक्ट" : "Subject"}</p>
                 <h3 className="mt-1 font-heading text-xl">{role}</h3>
                 <p className="mt-1 text-sm text-muted-foreground italic">{hi ? "प्रोफ़ाइल जोड़ी जाएगी।" : "Faculty profile to be added."}</p>
               </article>
@@ -215,15 +215,15 @@ export function HomeView() {
       <section id="visit" className="py-14 lg:py-[88px]">
         <div className="mx-auto grid max-w-[1240px] gap-10 px-5 min-[768px]:px-8 min-[1920px]:max-w-[1360px] lg:grid-cols-2">
           <div>
-            <h2 className="font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "खुलने का समय" : "Opening hours"}</h2>
+            <h2 className="font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "खुलने का टाइम" : "Opening hours"}</h2>
             <dl className="mt-6 space-y-3 text-[16px]">
               <div><dt className="text-muted-foreground">{hi ? "पता" : "Address"}</dt><dd>{blocks.location.lines[0]}</dd></div>
               <div><dt className="text-muted-foreground">{hi ? "फ़ोन" : "Phone"}</dt><dd className="num">{academy.phone.replace(/\s*\(sample\)\s*/i, "")}</dd></div>
-              <div><dt className="text-muted-foreground">{hi ? "समय" : "Hours"}</dt><dd>{blocks.hours}</dd></div>
+              <div><dt className="text-muted-foreground">{hi ? "टाइम" : "Hours"}</dt><dd>{blocks.hours}</dd></div>
             </dl>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/contact" className="inline-flex h-11 items-center rounded-[10px] bg-primary px-4 font-semibold text-primary-foreground">{hi ? "फ़्री ट्रायल बुक करें" : "Book free trial"}</Link>
-              <a href="#visit" className="inline-flex h-11 items-center rounded-[10px] border border-border px-4 font-semibold">{hi ? "दिशा" : "Get directions"}</a>
+              <a href="#visit" className="inline-flex h-11 items-center rounded-[10px] border border-border px-4 font-semibold">{hi ? "रास्ता देखें" : "Get directions"}</a>
             </div>
           </div>
           <RoadMap language={language} />
