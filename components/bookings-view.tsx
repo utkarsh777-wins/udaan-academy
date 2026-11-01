@@ -88,7 +88,7 @@ export function BookingsTable({ bookings }: { bookings: Booking[] }) {
                     <td className="py-2">{batch ? `${batch.label} · ${batch.days}` : booking.batch}</td>
                     <td className="py-2">{formatLongDate(booking.date, language)}</td>
                     <td className="py-2">{formatLongDate(booking.createdAt.slice(0, 10), language)}</td>
-                    <td className="py-2">{booking.source === "chat" ? "Chat" : "Form"}</td>
+                    <td className="py-2">{booking.source === "chat" ? (language === "hi" ? "चैट" : "Chat") : language === "hi" ? "फ़ॉर्म" : "Form"}</td>
                     <td className="py-2">{spokenLanguage(booking.language)}</td>
                   </tr>
                 );

@@ -125,8 +125,8 @@ export function HomeView() {
           <ol className="grid border-t border-foreground md:grid-cols-3">
             {[
               [hi ? "कोर्स और बैच चुनिए" : "Pick a course and batch", hi ? "टाइम और फ़ीस पेज पर लिखी है।" : "The time and the fee are already on the page."],
-              [hi ? "एक पूरी क्लास बैठिए" : "Attend one full class", hi ? "सीट डेस्क पर रखी जाती है।" : "The front desk holds the seat."],
-              [hi ? "डेस्क पर तय करें" : "Decide at the desk", hi ? "ऑनलाइन पेमेंट नहीं। एडमिशन के बाद ही फ़ीस।" : "No online payment. Pay only if you enrol."],
+              [hi ? "एक पूरी क्लास में बैठिए" : "Attend one full class", hi ? "सीट डेस्क पर रखी जाती है।" : "The front desk holds the seat."],
+              [hi ? "डेस्क पर तय कीजिए" : "Decide at the desk", hi ? "ऑनलाइन पेमेंट नहीं। एडमिशन लेंगे, तभी फ़ीस देनी होगी।" : "No online payment. Pay only if you enrol."],
             ].map(([title, body], index) => (
               <li key={title} className="border-b border-border py-6 md:border-r md:border-b-0 md:pr-7 md:pl-0 last:md:border-r-0">
                 <p className="num text-[13px] text-margin">Q{index + 1}.</p>
@@ -140,7 +140,7 @@ export function HomeView() {
 
       <section className="border-b border-border py-14 lg:py-[88px]">
         <div className="mx-auto max-w-[1240px] px-5 min-[768px]:px-8 min-[1920px]:max-w-[1360px]">
-          <h2 className="mb-8 font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "जो बात हम निभा सकते हैं।" : "Plain promises we can keep."}</h2>
+          <h2 className="mb-8 font-heading text-[clamp(24px,3vw,36px)] font-bold">{hi ? "सीधे वादे, जो हम निभा सकते हैं।" : "Plain promises we can keep."}</h2>
           <div className="grid overflow-hidden rounded-[14px] border border-border bg-card md:grid-cols-3">
             {(hi
               ? [

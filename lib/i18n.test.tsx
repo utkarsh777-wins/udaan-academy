@@ -86,7 +86,7 @@ describe("site language", () => {
       ["course", () => <CourseView slug="ielts-pte" />, "मॉक टेस्ट"],
       ["faculty", () => <FacultyView />, "कौन क्या पढ़ाता है"],
       ["fees", () => <FeesView />, "फ़ीस पहले से लिखी है"],
-      ["contact", () => <ContactView />, "एक क्लास बुक करें"],
+      ["contact", () => <ContactView />, "कोई पैसा नहीं लगेगा"],
       ["bookings", () => (<><BookingsIntro /><BookingsClosed /></>), "यह पेज तब तक बंद रहता है"],
     ];
     for (const [name, node, hindi] of checks) {

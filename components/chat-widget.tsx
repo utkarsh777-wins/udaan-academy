@@ -204,7 +204,7 @@ export function ChatWidget() {
       if (!response.ok || !body.reply) {
         setError(
           language === "hi"
-            ? "अभी जवाब नहीं बन पाया। संपर्क पेज से फ्री ट्रायल क्लास लिख सकते हैं।"
+            ? "अभी जवाब नहीं बन पाया। संपर्क पेज से फ़्री ट्रायल क्लास लिख सकते हैं।"
             : language === "pa"
               ? "ਹੁਣੇ ਜਵਾਬ ਨਹੀਂ ਬਣਿਆ। ਸੰਪਰਕ ਪੰਨੇ ਤੋਂ ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਲਿਖ ਸਕਦੇ ਹੋ।"
               : "The counsellor couldn’t reply just now. You can still book a free trial class on the contact page.",

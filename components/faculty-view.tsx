@@ -34,7 +34,7 @@ export function FacultyView() {
           <h1 className="mt-3 font-heading text-[clamp(32px,4.2vw,50px)] font-bold">{hi ? "कौन क्या पढ़ाता है।" : "Who teaches what."}</h1>
           <p className="lead mt-3 max-w-[62ch] text-[19px] text-muted-foreground">
             {hi
-              ? "हर टीचर अपनी प्रोफ़ाइल खुद लिखकर मंज़ूर करेंगे। तब तक यहाँ सिर्फ़ सब्जेक्ट और रोल है।"
+              ? "हर टीचर अपनी प्रोफ़ाइल खुद लिखकर मंज़ूर करेंगे। तब तक यहाँ सिर्फ़ सब्जेक्ट और रोल हैं।"
               : "Each teacher writes and approves their own profile. Until then, this page lists the subjects and the role, nothing more."}
           </p>
         </div>

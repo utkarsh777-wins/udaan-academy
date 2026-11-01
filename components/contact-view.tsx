@@ -16,7 +16,7 @@ export function ContactView() {
       <div className="mx-auto max-w-[1240px] px-5 py-14 min-[768px]:px-8 min-[1920px]:max-w-[1360px]">
         <p className="eyebrow">{hi ? "फ़्री ट्रायल क्लास" : "Free trial class"}</p>
         <h1 className="mt-3 max-w-[16ch] font-heading text-[clamp(32px,4.2vw,50px)] font-bold">
-          {hi ? "एक क्लास बुक करें। अभी कुछ न दें।" : "Book one class. Pay nothing."}
+          {hi ? "एक क्लास बुक कीजिए। कोई पैसा नहीं लगेगा।" : "Book one class. Pay nothing."}
         </h1>
         <p className="lead mt-3 max-w-[58ch] text-[19px] text-muted-foreground">
           {hi
