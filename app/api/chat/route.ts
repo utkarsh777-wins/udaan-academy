@@ -54,7 +54,15 @@ export async function POST(request: Request) {
   const history = sanitizeHistory(body.history);
   const result = counsel({ text: message, language, draft });
 
-  if (result.ready && result.draft.name && result.draft.phone && result.draft.course && result.draft.batch && result.draft.date) {
+  if (
+    result.ready &&
+    !result.draft.pendingName &&
+    result.draft.name &&
+    result.draft.phone &&
+    result.draft.course &&
+    result.draft.batch &&
+    result.draft.date
+  ) {
     const bookingResponse = await handleBookingRequest(
       new Request(request.url, {
         method: "POST",
@@ -65,6 +73,7 @@ export async function POST(request: Request) {
           course: result.draft.course,
           batch: result.draft.batch,
           date: result.draft.date,
+          language,
           source: "chat",
         }),
       }),
@@ -145,6 +154,8 @@ function sanitizeDraft(value: unknown): Draft {
   if (body.active === true) draft.active = true;
   if (body.confirming === true) draft.confirming = true;
   if (typeof body.name === "string") draft.name = body.name.slice(0, 80);
+  if (typeof body.pendingName === "string" && body.pendingName.trim()) draft.pendingName = body.pendingName.trim().slice(0, 80);
+  if (typeof body.pendingTimeName === "string" && body.pendingTimeName.trim()) draft.pendingTimeName = body.pendingTimeName.trim().slice(0, 80);
   if (typeof body.phone === "string") draft.phone = body.phone.slice(0, 20);
   if (typeof body.course === "string") draft.course = body.course.slice(0, 60);
   if (body.batch === "morning" || body.batch === "evening" || body.batch === "weekend") draft.batch = body.batch;
@@ -168,7 +179,10 @@ function sanitizeHistory(value: unknown): { role: "user" | "assistant"; content:
 function clearFields(draft: Draft, fields?: string[]): Draft {
   const next: Draft = { ...draft, confirming: false };
   for (const field of fields ?? []) {
-    if (field === "name") next.name = undefined;
+    if (field === "name") {
+      next.name = undefined;
+      next.pendingTimeName = undefined;
+    }
     if (field === "phone") next.phone = undefined;
     if (field === "course") next.course = undefined;
     if (field === "batch") next.batch = undefined;

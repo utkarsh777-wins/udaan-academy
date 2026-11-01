@@ -189,6 +189,7 @@ async function writeBooking(
   const nowMs = options.now.getTime();
   const parsed = input === undefined ? badJson() : validate(input, options.now, options.source);
   if (!parsed.ok) {
+    if (isSpecificValidation(parsed)) return parsed;
     if (!chargeJunk(options.ip, nowMs)) return connectionRateLimit();
     return parsed;
   }
@@ -366,6 +367,12 @@ function connectionRateLimit(): Extract<SubmitResult, { ok: false }> {
   };
 }
 
+function isSpecificValidation(result: Extract<SubmitResult, { ok: false }>): boolean {
+  if (result.error !== "invalid") return false;
+  const core = (result.fields ?? []).filter((field) => field !== "email" && field !== "language");
+  return core.length <= 2;
+}
+
 function chargeJunk(ip: string | null, nowMs: number): boolean {
   if (!ip) return true;
   const key = `junk:${ip}`;
@@ -380,21 +387,16 @@ function chargeJunk(ip: string | null, nowMs: number): boolean {
 }
 
 function invalidMessage(fields: string[], dateDetail?: string): string {
-  const core = fields.filter((field) => field !== "email");
-  if (core.length >= 3) {
-    return "Add the name, phone, course, batch, and date for the free trial class.";
-  }
-  if (fields.includes("phone")) {
-    return "Use a 10-digit mobile number starting with 6, 7, 8, or 9.";
-  }
-  if (fields.includes("date")) {
-    return dateDetail ?? "Pick a date from today through the next 45 days.";
-  }
-  if (fields.includes("email")) return "That email doesn’t look right. You can also leave it blank.";
+  const parts: string[] = [];
+  if (fields.includes("name")) parts.push("Add the name for the free trial class.");
+  if (fields.includes("phone")) parts.push("Use a 10-digit mobile number starting with 6, 7, 8, or 9.");
   if (fields.includes("course") || fields.includes("batch")) {
-    return "Pick a course and a batch that the centre actually runs.";
+    parts.push("Pick a course and a batch that the centre actually runs.");
   }
-  return "Add the name, phone, course, batch, and date for the free trial class.";
+  if (fields.includes("date")) parts.push(dateDetail ?? "Pick a date from today through the next 45 days.");
+  if (fields.includes("email")) parts.push("That email doesn’t look right. You can also leave it blank.");
+  if (parts.length === 0) return "Add the name, phone, course, batch, and date for the free trial class.";
+  return parts.join(" ");
 }
 
 function nextId(bookings: Booking[]): string {

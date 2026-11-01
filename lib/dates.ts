@@ -41,14 +41,34 @@ export function isISODate(value: string): boolean {
   );
 }
 
+const PA_WEEKDAYS = ["ਐਤ", "ਸੋਮ", "ਮੰਗਲ", "ਬੁੱਧ", "ਵੀਰ", "ਸ਼ੁੱਕਰ", "ਸ਼ਨੀ"];
+const PA_MONTHS = [
+  "ਜਨਵਰੀ",
+  "ਫ਼ਰਵਰੀ",
+  "ਮਾਰਚ",
+  "ਅਪ੍ਰੈਲ",
+  "ਮਈ",
+  "ਜੂਨ",
+  "ਜੁਲਾਈ",
+  "ਅਗਸਤ",
+  "ਸਤੰਬਰ",
+  "ਅਕਤੂਬਰ",
+  "ਨਵੰਬਰ",
+  "ਦਸੰਬਰ",
+];
+
 export function formatLongDate(iso: string, language: "en" | "hi" | "pa" = "en"): string {
   const [year, month, day] = iso.split("-").map(Number);
-  const locale = language === "hi" ? "hi-IN" : language === "pa" ? "pa-IN" : "en-IN";
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (language === "pa") {
+    return `${PA_WEEKDAYS[date.getUTCDay()]}, ${day} ${PA_MONTHS[month - 1]} ${year}`;
+  }
+  const locale = language === "hi" ? "hi-IN" : "en-IN";
   return new Intl.DateTimeFormat(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",
     year: "numeric",
     timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, month - 1, day)));
+  }).format(date);
 }

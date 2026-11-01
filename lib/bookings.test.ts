@@ -77,6 +77,42 @@ describe("POST /api/bookings", () => {
     if (!bad.ok) expect(bad.fields).toContain("language");
   });
 
+  it("accepts one-word time names and rejects junk names", async () => {
+    const names = ["Sham", "Subah", "Savera", "Sandhya", "शाम", "ਸ਼ਾਮ"];
+    const languages = ["en", "hi", "pa"] as const;
+    let phone = 9876610000;
+    for (const name of names) {
+      for (const language of languages) {
+        phone += 1;
+        const saved = await submitBooking(payload(String(phone), { name, language, source: "form" }), {
+          ip: `10.4.${phone % 200}.${(phone >> 8) % 200}`,
+          now,
+          webhookUrl: null,
+        });
+        expect(saved.ok, `${language} ${name}`).toBe(true);
+        if (saved.ok) {
+          expect(saved.booking.name).toBe(name);
+          expect(saved.booking.language).toBe(language);
+          expect(saved.booking.source).toBe("form");
+        }
+      }
+    }
+    for (const name of ["Nanak", "Ona"]) {
+      phone += 1;
+      const kept = await submitBooking(payload(String(phone), { name }), {
+        ip: `10.8.${phone % 200}.1`,
+        now,
+        webhookUrl: null,
+      });
+      expect(kept.ok, name).toBe(true);
+    }
+    for (const name of ["hmm", "test", "booking", "later", "skip", "na", "none", "online", "Punjabi", "interested"]) {
+      const rejected = await submitBooking(payload("9876610999", { name }), { ip: "10.4.0.2", now, webhookUrl: null });
+      expect(rejected.ok, name).toBe(false);
+      if (!rejected.ok) expect(rejected.fields, name).toContain("name");
+    }
+  });
+
   it("rejects a missing name, a bad phone, a bad course, and a bad email", async () => {
     const missing = await submitBooking(payload("9876543211", { name: "" }), { ip: "10.0.0.1", now, webhookUrl: null });
     expect(missing.ok).toBe(false);
@@ -163,6 +199,17 @@ describe("POST /api/bookings", () => {
       expect(sunday.fields).toContain("date");
       expect(sunday.message).toMatch(/doesn't run/);
       expect(sunday.message).toMatch(/next open day/i);
+    }
+    const several = await submitBooking(payload("12345", { name: "", date: "2026-11-08" }), {
+      ip: "10.7.0.2",
+      now,
+      webhookUrl: null,
+    });
+    expect(several.ok).toBe(false);
+    if (!several.ok) {
+      expect(several.message).toMatch(/Add the name/);
+      expect(several.message).toMatch(/10-digit/);
+      expect(several.message).toMatch(/doesn't run/);
     }
   });
 
@@ -286,6 +333,34 @@ describe("R3-B1 unknown client address", () => {
     }
     const afterJunk = await submitBooking(payload("9810000087"), { ip: "203.0.113.40", now, webhookUrl: null });
     expect(afterJunk.ok).toBe(true);
+  });
+
+  it("R7 keeps a real date error after the junk cap is full", async () => {
+    for (let index = 0; index < 3; index += 1) {
+      const junk = await submitBooking({ x: 1 }, { ip: "203.0.113.77", now, webhookUrl: null });
+      expect(junk.ok).toBe(false);
+      if (!junk.ok) expect(junk.status).toBe(422);
+    }
+    const blocked = await submitBooking({ x: 1 }, { ip: "203.0.113.77", now, webhookUrl: null });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.status).toBe(429);
+      expect(blocked.message).toMatch(/Too many attempts/);
+    }
+    const weekday = await submitBooking(payload("9810000044", { date: "2026-11-08" }), {
+      ip: "203.0.113.77",
+      now,
+      webhookUrl: null,
+    });
+    expect(weekday.ok).toBe(false);
+    if (!weekday.ok) {
+      expect(weekday.status).toBe(422);
+      expect(weekday.dateReason).toBe("weekday");
+      expect(weekday.message).toMatch(/doesn't run/);
+    }
+    const stillJunk = await submitBooking({ x: 2 }, { ip: "203.0.113.77", now, webhookUrl: null });
+    expect(stillJunk.ok).toBe(false);
+    if (!stillJunk.ok) expect(stillJunk.status).toBe(429);
   });
 
   it("still stops the site after 200 saved trials in an hour", async () => {
@@ -458,6 +533,33 @@ describe("route handlers", () => {
     expect(body.booking).toBeNull();
     expect(body.reply.toLowerCase()).toContain("trial");
     expect(body.reply.toLowerCase()).toContain("fee");
+  });
+
+  it("records the chat language on a saved trial", async () => {
+    const response = await postChat(
+      new Request("http://127.0.0.1:43123/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", host: "127.0.0.1:43123" },
+        body: JSON.stringify({
+          message: "yes",
+          language: "pa",
+          draft: {
+            active: true,
+            confirming: true,
+            name: "Simran",
+            phone: "9876511111",
+            course: "ielts-pte",
+            batch: "morning",
+            date: "2026-11-20",
+          },
+          history: [],
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    const saved = await listBookings();
+    expect(saved[0]?.language).toBe("pa");
+    expect(saved[0]?.source).toBe("chat");
   });
 
   it("localises a chat rate limit and keeps the draft", async () => {

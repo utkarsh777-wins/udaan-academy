@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { academy, getCourse, type BatchId } from "@/lib/academy";
 import { courseCopy, ui } from "@/lib/localize";
 import { formatLongDate } from "@/lib/dates";
 import { bookableDates } from "@/lib/schedule";
+import { formServerMessage } from "@/lib/chat/respond";
 import { useSiteLang } from "@/components/language-provider";
 import { Ticket } from "@/components/ticket";
 import { cn } from "@/lib/utils";
@@ -41,11 +42,45 @@ export function TrialForm() {
   const [review, setReview] = useState(false);
   const [pending, setPending] = useState(false);
   const [reference, setReference] = useState("");
+  const nameId = useId();
+  const phoneId = useId();
+  const courseErrorId = useId();
+  const batchErrorId = useId();
+  const nameErrorId = useId();
+  const phoneErrorId = useId();
+  const phoneHintId = useId();
+  const dateErrorId = useId();
+  const formErrorId = useId();
+  const courseRef = useRef<HTMLFieldSetElement>(null);
+  const batchRef = useRef<HTMLFieldSetElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const dateRef = useRef<HTMLFieldSetElement>(null);
+  const formErrorRef = useRef<HTMLParagraphElement>(null);
+  const focusFormError = useRef(false);
 
   const selected = getCourse(course);
   const shown = selected ? courseCopy(selected, language) : null;
   const chosen = shown?.batches.find((item) => item.id === batch);
   const dates = chosen ? bookableDates(chosen.weekdays, chosen.time) : [];
+
+  useEffect(() => {
+    if (!focusFormError.current || !errors.form) return;
+    focusFormError.current = false;
+    formErrorRef.current?.focus();
+  }, [errors.form, review]);
+
+  function focusFirstInvalid(next: Errors) {
+    const order = [
+      ["course", courseRef],
+      ["batch", batchRef],
+      ["name", nameRef],
+      ["phone", phoneRef],
+      ["date", dateRef],
+    ] as const;
+    const found = order.find(([key]) => next[key]);
+    found?.[1].current?.focus();
+  }
 
   function validate(): Errors {
     const next: Errors = {};
@@ -72,10 +107,30 @@ export function TrialForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: name.trim(), phone: local, course, batch, date, language: spoken, source: "form" }),
       });
-      const body = (await response.json()) as { booking?: { id: string }; message?: string };
+      const body = (await response.json()) as {
+        booking?: { id: string };
+        message?: string;
+        error?: string;
+        fields?: string[];
+        limit?: "phone" | "ip" | "site";
+        dateReason?: "window" | "weekday" | "ended";
+      };
       if (!response.ok || !body.booking) {
-        setErrors({ form: body.message ?? copy.errForm });
+        const server: Errors = {};
+        if (body.fields?.includes("name")) server.name = copy.errName;
+        if (body.fields?.includes("phone")) server.phone = copy.errPhone;
+        if (body.fields?.includes("course")) server.course = copy.errCourse;
+        if (body.fields?.includes("batch")) server.batch = copy.errBatch;
+        if (body.fields?.includes("date")) {
+          server.date =
+            body.dateReason === "weekday" ? copy.errWeekday : body.dateReason === "ended" ? copy.errEnded : body.dateReason === "window" ? copy.errWindow : copy.errDate;
+        }
+        const fieldError = Boolean(server.name || server.phone || server.course || server.batch || server.date);
+        if (!fieldError) server.form = body.error || body.message ? formServerMessage(language, body) : copy.errForm;
+        focusFormError.current = !fieldError;
+        setErrors(server);
         setReview(false);
+        if (fieldError) focusFirstInvalid(server);
         return;
       }
       setReference(body.booking.id);
@@ -94,6 +149,7 @@ export function TrialForm() {
         <p className="mt-2 text-muted-foreground">{hi ? "डेस्क फ़ोन करके पक्का करेगा।" : "The front desk will call you to confirm."}</p>
         <Ticket
           className="mt-4"
+          label={copy.ticketLabel}
           eyebrow={hi ? "फ़्री ट्रायल क्लास" : "Free trial class"}
           from={hi ? "फगवाड़ा" : "Phagwara"}
           to={shown.name}
@@ -118,7 +174,8 @@ export function TrialForm() {
           else {
             const next = validate();
             setErrors(next);
-            if (!Object.keys(next).length) setReview(true);
+            if (Object.keys(next).length) focusFirstInvalid(next);
+            else setReview(true);
           }
         }}
         noValidate
@@ -126,7 +183,7 @@ export function TrialForm() {
         <p className="mb-6 text-sm text-muted-foreground">
           <span className="text-margin">1</span> {hi ? "कोर्स" : "Course"} · <span className="text-margin">2</span> {hi ? "विवरण" : "Your details"} · <span className="text-margin">3</span> {hi ? "पक्का करें" : "Confirm"}
         </p>
-        <fieldset className="mb-5">
+        <fieldset ref={courseRef} tabIndex={-1} className="mb-5 outline-none" aria-invalid={Boolean(errors.course)} aria-describedby={errors.course ? courseErrorId : undefined}>
           <legend className="mb-2 font-semibold">{copy.formCourse}</legend>
           <div className="flex flex-wrap gap-2">
             {academy.courses.map((item) => (
@@ -149,8 +206,13 @@ export function TrialForm() {
               </button>
             ))}
           </div>
+          {errors.course ? (
+            <p id={courseErrorId} className="mt-2 text-sm text-destructive">
+              {errors.course}
+            </p>
+          ) : null}
         </fieldset>
-        <fieldset className="mb-5">
+        <fieldset ref={batchRef} tabIndex={-1} className="mb-5 outline-none" aria-invalid={Boolean(errors.batch)} aria-describedby={errors.batch ? batchErrorId : undefined}>
           <legend className="mb-2 font-semibold">{copy.formBatch}</legend>
           <div className="flex flex-wrap gap-2">
             {(shown?.batches ?? []).map((item) => (
@@ -173,19 +235,52 @@ export function TrialForm() {
               </button>
             ))}
           </div>
-          {errors.batch ? <p className="mt-2 text-sm text-destructive">{errors.batch}</p> : null}
+          {errors.batch ? (
+            <p id={batchErrorId} className="mt-2 text-sm text-destructive">
+              {errors.batch}
+            </p>
+          ) : null}
         </fieldset>
-        <label className="mb-4 block">
+        <label className="mb-4 block" htmlFor={nameId}>
           <span className="mb-1.5 block font-semibold">{hi ? "छात्र का नाम" : "Student name"}</span>
-          <input value={name} onChange={(event) => setName(event.target.value)} className="h-12 w-full rounded-[10px] border border-input bg-card px-3 text-base" aria-invalid={Boolean(errors.name)} />
-          {errors.name ? <span className="mt-1 block text-sm text-destructive">{errors.name}</span> : null}
+          <input
+            id={nameId}
+            ref={nameRef}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="h-12 w-full rounded-[10px] border border-input bg-card px-3 text-base"
+            aria-invalid={Boolean(errors.name)}
+            aria-describedby={errors.name ? nameErrorId : undefined}
+          />
+          {errors.name ? (
+            <span id={nameErrorId} className="mt-1 block text-sm text-destructive">
+              {errors.name}
+            </span>
+          ) : null}
         </label>
-        <label className="mb-4 block">
+        <label className="mb-4 block" htmlFor={phoneId}>
           <span className="mb-1.5 block font-semibold">{copy.formPhone}</span>
-          <input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" className="h-12 w-full rounded-[10px] border border-input bg-card px-3 text-base" aria-invalid={Boolean(errors.phone)} />
-          {errors.phone ? <span className="mt-1 block text-sm text-destructive">{errors.phone}</span> : <span className="mt-1 block text-[13.5px] text-muted-foreground">{copy.formPhoneHint}</span>}
+          <input
+            id={phoneId}
+            ref={phoneRef}
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            inputMode="tel"
+            className="h-12 w-full rounded-[10px] border border-input bg-card px-3 text-base"
+            aria-invalid={Boolean(errors.phone)}
+            aria-describedby={errors.phone ? phoneErrorId : phoneHintId}
+          />
+          {errors.phone ? (
+            <span id={phoneErrorId} className="mt-1 block text-sm text-destructive">
+              {errors.phone}
+            </span>
+          ) : (
+            <span id={phoneHintId} className="mt-1 block text-[13.5px] text-muted-foreground">
+              {copy.formPhoneHint}
+            </span>
+          )}
         </label>
-        <fieldset className="mb-5 min-w-0">
+        <fieldset ref={dateRef} tabIndex={-1} className="mb-5 min-w-0 outline-none" aria-invalid={Boolean(errors.date)} aria-describedby={errors.date ? dateErrorId : undefined}>
           <legend className="mb-2 font-semibold">{copy.formDate}</legend>
           {chosen ? (
             <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-1 [scrollbar-width:none]" aria-label={copy.formDate}>
@@ -211,7 +306,11 @@ export function TrialForm() {
           ) : (
             <p className="text-sm text-muted-foreground">{hi ? "पहले बैच चुनिए।" : "Choose a batch first."}</p>
           )}
-          {errors.date ? <p className="mt-2 text-sm text-destructive">{errors.date}</p> : null}
+          {errors.date ? (
+            <p id={dateErrorId} className="mt-2 text-sm text-destructive">
+              {errors.date}
+            </p>
+          ) : null}
           {date ? <p className="mt-2 text-sm text-muted-foreground">{formatLongDate(date, language)}</p> : null}
         </fieldset>
         <label className="mb-4 block">
@@ -226,10 +325,15 @@ export function TrialForm() {
             <option value="pa">ਪੰਜਾਬੀ</option>
           </select>
         </label>
-        {errors.form ? <p className="mb-3 text-sm text-destructive">{errors.form}</p> : null}
+        {errors.form ? (
+          <p ref={formErrorRef} id={formErrorId} tabIndex={-1} role="alert" className="mb-3 text-sm text-destructive outline-none">
+            {errors.form}
+          </p>
+        ) : null}
         {review && shown && chosen ? (
           <div className="mb-4">
             <Ticket
+              label={copy.ticketLabel}
               eyebrow={hi ? "फ़्री ट्रायल क्लास" : "Free trial class"}
               from={hi ? "फगवाड़ा" : "Phagwara"}
               to={shown.name}
@@ -255,6 +359,7 @@ export function TrialForm() {
       <aside className="lg:sticky lg:top-24">
         <p className="mb-3 font-semibold">{hi ? "आपका ट्रायल पास" : "Your trial pass"}</p>
         <Ticket
+          label={copy.ticketLabel}
           eyebrow={hi ? "फ़्री ट्रायल क्लास" : "Free trial class"}
           from={hi ? "फगवाड़ा" : "Phagwara"}
           to={shown?.name ?? "—"}

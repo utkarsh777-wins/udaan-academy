@@ -14,7 +14,11 @@ import { CourseView } from "@/components/course-view";
 import { FacultyView } from "@/components/faculty-view";
 import { FeesView } from "@/components/fees-view";
 import { ContactView } from "@/components/contact-view";
-import { BookingsClosed, BookingsIntro } from "@/components/bookings-view";
+import { BookingsClosed, BookingsIntro, BookingsTable } from "@/components/bookings-view";
+import { NotFoundView } from "@/components/not-found-view";
+import { Ticket } from "@/components/ticket";
+import { ui } from "@/lib/localize";
+import type { Booking } from "@/lib/bookings";
 import { themeConfig } from "@/lib/theme";
 import { siteLanguageCookie } from "@/lib/site-language";
 
@@ -145,12 +149,85 @@ describe("sample notice", () => {
       const rest = (host?.textContent ?? "").replace(notice, "");
       expect(rest.toLowerCase()).not.toContain("sample");
       expect(rest).not.toContain("नमूना");
-      expect(notice.toLowerCase()).toMatch(/sample|सैंपल/);
+      expect(notice).not.toContain("नमूना");
+      if (language === "hi") expect(notice).toContain("सैंपल");
+      else expect(notice.toLowerCase()).toContain("sample");
       act(() => root?.unmount());
       host?.remove();
       root = null;
       host = null;
     }
+  });
+});
+
+describe("translated labels", () => {
+  it("gives the nav, ticket, and 404 a title in both languages", () => {
+    mount(page(<SiteHeader />, "hi"));
+    expect(host?.querySelector("nav")?.getAttribute("aria-label")).toBe("मुख्य");
+    act(() => root?.unmount());
+    host?.remove();
+
+    mount(page(<SiteHeader />, "en"));
+    expect(host?.querySelector("nav")?.getAttribute("aria-label")).toBe("Primary");
+    act(() => root?.unmount());
+    host?.remove();
+
+    mount(
+      page(
+        <Ticket label={ui("hi").ticketLabel} eyebrow="ट्रायल" from="फगवाड़ा" to="IELTS" fields={[{ label: "कोर्स", value: "IELTS" }]} />,
+        "hi",
+      ),
+    );
+    expect(host?.querySelector("[role=group]")?.getAttribute("aria-label")).toBe("ट्रायल क्लास का विवरण");
+    act(() => root?.unmount());
+    host?.remove();
+
+    mount(page(<NotFoundView />, "hi"));
+    expect(host?.querySelector("h1")?.textContent).toBe("यह पेज इस साइट पर नहीं है");
+    expect(document.title).toContain("यह पेज इस साइट पर नहीं है");
+    act(() => root?.unmount());
+    host?.remove();
+
+    mount(page(<NotFoundView />, "en"));
+    expect(host?.querySelector("h1")?.textContent).toBe("That page is not on this site");
+    expect(document.title).toContain("That page is not on this site");
+    act(() => root?.unmount());
+    host?.remove();
+    root = null;
+    host = null;
+  });
+
+  it("shows Form/Chat and a language name on saved requests", () => {
+    const booking: Booking = {
+      id: "UA-TEST1",
+      name: "Simran",
+      phone: "9876543210",
+      course: "ielts-pte",
+      batch: "morning",
+      date: "2026-11-20",
+      createdAt: "2026-10-31T08:00:00.000Z",
+      source: "chat",
+      language: "pa",
+    };
+    mount(page(<BookingsTable bookings={[booking]} />, "en"));
+    const cells = [...(host?.querySelectorAll("td") ?? [])].map((cell) => cell.textContent);
+    expect(cells).toContain("Chat");
+    expect(cells).toContain("ਪੰਜਾਬੀ");
+    expect(cells).not.toContain("chat");
+    expect(cells).not.toContain("pa");
+  });
+});
+
+describe("course ticket width", () => {
+  it("lets the ticket row shrink instead of widening the page", () => {
+    mount(page(<CourseView slug="jee-foundation" />, "en"));
+    expect(host?.innerHTML).toContain("grid-cols-[minmax(0,1fr)]");
+    const ticket = host?.querySelector("[role=group]");
+    expect(ticket?.className).toContain("overflow-hidden");
+    expect(ticket?.className).toContain("min-w-0");
+    expect(ticket?.innerHTML).toContain("flex-wrap");
+    const aside = ticket?.parentElement;
+    expect(aside?.className).toContain("min-w-0");
   });
 });
 

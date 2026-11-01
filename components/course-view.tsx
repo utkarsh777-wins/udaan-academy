@@ -33,7 +33,7 @@ export function CourseView({ slug }: { slug: string }) {
           <p className="lead mt-3 max-w-[62ch] text-[19px] text-muted-foreground">{shown.summary}</p>
         </div>
       </div>
-      <div className="mx-auto grid max-w-[1240px] gap-10 px-5 py-14 min-[768px]:px-8 min-[1920px]:max-w-[1360px] lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
+      <div className="mx-auto grid max-w-[1240px] grid-cols-[minmax(0,1fr)] gap-10 px-5 py-14 min-[768px]:px-8 min-[1920px]:max-w-[1360px] lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
         <div>
           <dl className="grid gap-6 sm:grid-cols-3">
             {[
@@ -76,8 +76,9 @@ export function CourseView({ slug }: { slug: string }) {
             </div>
           </article>
         </div>
-        <aside className="lg:sticky lg:top-24 lg:self-start">
+        <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start">
           <Ticket
+            label={copy.ticketLabel}
             eyebrow={hi ? "फ़्री ट्रायल क्लास" : "Free trial class"}
             from={hi ? "फगवाड़ा" : "Phagwara"}
             to={track}

@@ -88,8 +88,8 @@ export function BookingsTable({ bookings }: { bookings: Booking[] }) {
                     <td className="py-2">{batch ? `${batch.label} · ${batch.days}` : booking.batch}</td>
                     <td className="py-2">{formatLongDate(booking.date, language)}</td>
                     <td className="py-2">{formatLongDate(booking.createdAt.slice(0, 10), language)}</td>
-                    <td className="py-2">{booking.source}</td>
-                    <td className="py-2">{booking.language ?? "—"}</td>
+                    <td className="py-2">{booking.source === "chat" ? "Chat" : "Form"}</td>
+                    <td className="py-2">{spokenLanguage(booking.language)}</td>
                   </tr>
                 );
               })}
@@ -103,4 +103,11 @@ export function BookingsTable({ bookings }: { bookings: Booking[] }) {
 
 export function BookingsLogin() {
   return <AdminLogin />;
+}
+
+function spokenLanguage(code: Booking["language"]): string {
+  if (code === "en") return "English";
+  if (code === "hi") return "हिंदी";
+  if (code === "pa") return "ਪੰਜਾਬੀ";
+  return "—";
 }

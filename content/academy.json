@@ -55,6 +55,7 @@
     {
       "slug": "ielts-pte",
       "name": "IELTS & PTE",
+      "namePa": "IELTS ਅਤੇ PTE",
       "goal": "abroad",
       "summary": "Module practice and weekly mock tests for students planning to study or settle abroad.",
       "about": [
@@ -142,6 +143,7 @@
     {
       "slug": "jee-foundation",
       "name": "JEE Foundation",
+      "namePa": "JEE ਫਾਊਂਡੇਸ਼ਨ",
       "goal": "engineering",
       "summary": "Physics, chemistry, and maths for class 11 and 12 students sitting JEE Main.",
       "about": [
@@ -225,6 +227,7 @@
     {
       "slug": "neet-foundation",
       "name": "NEET Foundation",
+      "namePa": "NEET ਫਾਊਂਡੇਸ਼ਨ",
       "goal": "medical",
       "summary": "Biology-heavy foundation for class 11 and 12 students aiming at NEET.",
       "about": [
@@ -316,6 +319,7 @@
     {
       "slug": "punjab-board",
       "name": "Punjab Board Tuition",
+      "namePa": "ਪੰਜਾਬ ਬੋਰਡ ਟਿਊਸ਼ਨ",
       "goal": "board",
       "summary": "School tuition for Punjab School Education Board classes 9 to 12.",
       "about": [
@@ -413,6 +417,7 @@
     {
       "slug": "spoken-english",
       "name": "Spoken English",
+      "namePa": "ਸਪੋਕਨ ਇੰਗਲਿਸ਼",
       "goal": "spoken",
       "summary": "A small batch for people who understand English and want to speak it.",
       "about": [

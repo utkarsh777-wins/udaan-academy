@@ -3,8 +3,8 @@
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { MessageCircleIcon, SendIcon, XIcon } from "lucide-react";
-import { getCourse, type Language } from "@/lib/academy";
-import { openingGreeting, languageSwitched, type Draft } from "@/lib/chat/respond";
+import { batchLabel, getCourse, type Language } from "@/lib/academy";
+import { formatBatchTime, openingGreeting, languageSwitched, type Draft } from "@/lib/chat/respond";
 import { courseCopy } from "@/lib/localize";
 import { formatLongDate } from "@/lib/dates";
 import { useSiteLang } from "@/components/language-provider";
@@ -86,6 +86,8 @@ export function ChatWidget() {
   const titleId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+  const sendingRef = useRef(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
 
@@ -101,6 +103,37 @@ export function ChatWidget() {
   }, [open]);
 
   useEffect(() => {
+    if (!open) return;
+    const media = window.matchMedia?.("(max-width: 767px)");
+    if (!media?.matches) return;
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    const body = document.body;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${y}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.left = previous.left;
+      body.style.right = previous.right;
+      body.style.width = previous.width;
+      body.style.overflow = previous.overflow;
+      window.scrollTo({ top: y, left: 0, behavior: "instant" });
+    };
+  }, [open]);
+
+  useEffect(() => {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight });
   }, [messages, open, pending]);
 
@@ -109,11 +142,22 @@ export function ChatWidget() {
   }, [language, open]);
 
   useEffect(() => {
+    if (open || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    launcherRef.current?.focus();
+  }, [open]);
+
+  function closeChat() {
+    restoreFocus.current = true;
+    setOpen(false);
+  }
+
+  useEffect(() => {
     if (!open) return;
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setOpen(false);
-        launcherRef.current?.focus();
+        event.preventDefault();
+        closeChat();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -134,12 +178,13 @@ export function ChatWidget() {
 
   async function send(text: string, display?: string) {
     const message = text.trim();
-    if (!message || pending) return;
+    if (!message || pending || sendingRef.current) return;
+    sendingRef.current = true;
+    setPending(true);
     setError("");
     setInput("");
     const history = messages.map(({ role, content }) => ({ role, content }));
     setMessages((current) => [...current, { role: "user", content: display ?? message, language }]);
-    setPending(true);
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -177,6 +222,7 @@ export function ChatWidget() {
             : "The connection dropped. Try again in a moment.",
       );
     } finally {
+      sendingRef.current = false;
       setPending(false);
     }
   }
@@ -188,8 +234,10 @@ export function ChatWidget() {
 
   const copy = labels[language];
   const confirming = Boolean(draft.confirming && draft.course && draft.batch && draft.date);
+  const renamePending = Boolean(draft.pendingName);
   const booked = draft.course ? getCourse(draft.course) : undefined;
   const bookedView = booked ? courseCopy(booked, language === "pa" ? "en" : language) : null;
+  const courseName = booked ? (language === "pa" ? booked.namePa : bookedView?.name ?? booked.name) : "";
   const bookedBatch = bookedView?.batches.find((item) => item.id === draft.batch);
 
   if (pathname === "/contact") return null;
@@ -222,10 +270,7 @@ export function ChatWidget() {
               variant="outline"
               size="icon"
               className="size-10 shrink-0 rounded-full"
-              onClick={() => {
-                setOpen(false);
-                launcherRef.current?.focus();
-              }}
+              onClick={closeChat}
               aria-label={copy.close}
             >
               <XIcon />
@@ -288,18 +333,24 @@ export function ChatWidget() {
                     : "Check this before it goes to the front desk."}
               </p>
               <Ticket
-                eyebrow={language === "hi" ? "फ़्री ट्रायल क्लास" : "Free trial class"}
-                from={language === "hi" ? "फगवाड़ा" : "Phagwara"}
-                to={bookedView.name}
+                label={language === "hi" ? "ट्रायल क्लास का विवरण" : language === "pa" ? "ਟਰਾਇਲ ਕਲਾਸ ਦਾ ਵੇਰਵਾ" : "Trial class details"}
+                eyebrow={language === "hi" ? "फ़्री ट्रायल क्लास" : language === "pa" ? "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ" : "Free trial class"}
+                from={language === "hi" ? "फगवाड़ा" : language === "pa" ? "ਫਗਵਾੜਾ" : "Phagwara"}
+                to={courseName}
                 fields={[
-                  { label: "Name", value: draft.name ?? "" },
-                  { label: "Phone", value: draft.phone ?? "", mono: true },
-                  { label: "Date", value: draft.date ? formatLongDate(draft.date, language === "pa" ? "en" : language) : "", mono: true },
-                  { label: "Time", value: bookedBatch.time, mono: true },
+                  { label: language === "hi" ? "नाम" : language === "pa" ? "ਨਾਮ" : "Name", value: draft.name ?? "" },
+                  { label: language === "hi" ? "फ़ोन" : language === "pa" ? "ਫੋਨ" : "Phone", value: draft.phone ?? "", mono: true },
+                  { label: language === "hi" ? "कोर्स" : language === "pa" ? "ਕੋਰਸ" : "Course", value: courseName },
+                  {
+                    label: language === "hi" ? "बैच" : language === "pa" ? "ਬੈਚ" : "Batch",
+                    value: draft.batch ? (language === "en" ? batchLabel(draft.batch, "en").replace(/^./, (letter) => letter.toUpperCase()) : batchLabel(draft.batch, language)) : bookedBatch.label,
+                  },
+                  { label: language === "hi" ? "तारीख" : language === "pa" ? "ਤਾਰੀਖ" : "Date", value: draft.date ? formatLongDate(draft.date, language) : "", mono: true },
+                  { label: language === "hi" ? "समय" : language === "pa" ? "ਸਮਾਂ" : "Time", value: formatBatchTime(bookedBatch.time, language), mono: true },
                 ]}
               />
               <div className="mt-3 flex gap-2">
-                <Button type="button" className="min-h-11 flex-1 bg-primary text-primary-foreground" disabled={pending} onClick={() => void send("yes", language === "hi" ? "अनुरोध भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request")}>
+                <Button type="button" className="min-h-11 flex-1 bg-primary text-primary-foreground" disabled={pending || renamePending} onClick={() => { if (renamePending) return; void send("yes", language === "hi" ? "अनुरोध भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request"); }}>
                   {language === "hi" ? "अनुरोध भेजें" : language === "pa" ? "ਬੇਨਤੀ ਭੇਜੋ" : "Send request"}
                 </Button>
                 <Button type="button" variant="outline" className="min-h-11" disabled={pending} onClick={() => void send("change", language === "hi" ? "संपादित करें" : language === "pa" ? "ਸੋਧੋ" : "Edit")}>
