@@ -73,9 +73,11 @@ export function tokenize(input: string): string[] {
 }
 
 export function fold(input: string): string {
-  const mapped = [...input.normalize("NFC")]
+  const mapped = [...input.normalize("NFD")]
+    .filter((char) => char !== "\u093C")
     .map((char) => DIGITS[char] ?? char)
     .join("")
+    .normalize("NFC")
     .toLowerCase();
   return mapped.replaceAll("ਸ਼", "ਸ਼");
 }

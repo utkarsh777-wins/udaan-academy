@@ -15,7 +15,7 @@ const languages = ["en", "hi", "pa"] as const;
 
 const ask = {
   name: /name|नाम|ਨਾਮ|ਨਾਂ/i,
-  phone: /phone|फोन|ਫੋਨ/i,
+  phone: /phone|फ़ोन|फोन|ਫੋਨ/i,
   batch: /batch|बैच|ਬੈਚ/i,
   date: /date|तारीख|ਤਾਰੀਖ/i,
   send: /send|भेज|ਭੇਜ/i,
@@ -27,7 +27,7 @@ const ask = {
   window: /45/,
   neet: /neet/i,
   online: /online|ऑनलाइन|ਔਨਲਾਈਨ/i,
-  fee: /fee|फीस|ਫੀਸ/i,
+  fee: /fee|फ़ीस|फीस|ਫੀਸ/i,
 };
 
 const bases = {

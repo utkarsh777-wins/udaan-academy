@@ -138,11 +138,11 @@ export async function POST(request: Request) {
 
 function chatLimitReply(language: Language, limit: "ip" | "site"): string {
   if (limit === "site") {
-    if (language === "hi") return "इस घंटे में साइट पर बहुत संदेश आ चुके हैं। थोड़ी देर बाद फिर लिखिए।";
+    if (language === "hi") return "इस घंटे में साइट पर बहुत मैसेज आ चुके हैं। थोड़ी देर बाद फिर लिखिए।";
     if (language === "pa") return "ਇਸ ਘੰਟੇ ਵਿੱਚ ਸਾਈਟ ਉੱਤੇ ਬਹੁਤ ਸੁਨੇਹੇ ਆ ਚੁੱਕੇ ਹਨ। ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਫਿਰ ਲਿਖੋ।";
     return "Too many messages on the site this hour. Try again later.";
   }
-  if (language === "hi") return "इस कनेक्शन से बहुत संदेश आ चुके हैं। दस मिनट रुक कर फिर लिखिए।";
+  if (language === "hi") return "इस कनेक्शन से बहुत मैसेज आ चुके हैं। दस मिनट रुक कर फिर लिखिए।";
   if (language === "pa") return "ਇਸ ਕਨੈਕਸ਼ਨ ਤੋਂ ਬਹੁਤ ਸੁਨੇਹੇ ਆ ਚੁੱਕੇ ਹਨ। ਦਸ ਮਿੰਟ ਰੁਕ ਕੇ ਫਿਰ ਲਿਖੋ।";
   return "Too many messages from this connection. Wait ten minutes and try again.";
 }

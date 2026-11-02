@@ -103,6 +103,7 @@ describe("greetings, fees, phone, and off-topic", () => {
   it("recognises a fees question in each language", () => {
     expect(parseUtterance("what is the fee").intent).toBe("fees");
     expect(parseUtterance("फीस कितनी है").intent).toBe("fees");
+    expect(parseUtterance("फ़ीस कितनी है").intent).toBe("fees");
     expect(parseUtterance("ਫੀਸ ਕਿੰਨੀ ਹੈ").intent).toBe("fees");
   });
 
@@ -110,6 +111,12 @@ describe("greetings, fees, phone, and off-topic", () => {
     expect(parseUtterance("what is your phone number").intent).toBe("phone");
     expect(parseUtterance("फोन नंबर क्या है").intent).toBe("phone");
     expect(parseUtterance("ਫੋਨ ਨੰਬਰ ਕੀ ਹੈ").intent).toBe("phone");
+  });
+
+  it("still accepts फीस, फोन and फ्री without a nukta", () => {
+    expect(parseUtterance("फीस कितनी है").intent).toBe("fees");
+    expect(parseUtterance("फोन नंबर क्या है").intent).toBe("phone");
+    expect(parseUtterance("फ्री क्लास बुक करो").intent).toBe("book");
   });
 
   it("recognises an off-topic question in each language", () => {

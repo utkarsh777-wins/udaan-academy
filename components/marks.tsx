@@ -28,7 +28,7 @@ export function RoadMap({ language = "en" }: { language?: "en" | "hi" }) {
   const hi = language === "hi";
   return (
     <div className="h-full min-h-56 overflow-hidden rounded-[14px] border border-border bg-card">
-      <svg viewBox="0 0 520 300" className="h-full w-full" role="img" aria-label={hi ? "जी.टी. रोड का बना हुआ चित्र, लाइव नक्शा नहीं" : "A drawn sketch of GT Road, not a live map"}>
+      <svg viewBox="0 0 520 300" className="h-full w-full" role="img" aria-label={hi ? "जी.टी. रोड का बना हुआ स्केच, लाइव नक्शा नहीं" : "A drawn sketch of GT Road, not a live map"}>
         <path d="M-10 210 L530 120" stroke="var(--border)" strokeWidth="22" />
         <path d="M-10 210 L530 120" stroke="var(--muted-foreground)" strokeWidth="1" strokeDasharray="10 10" />
         <text x="40" y="236" fill="var(--muted-foreground)" fontSize="12" fontFamily="var(--font-anek-deva), var(--font-plex-mono), sans-serif" transform="rotate(-9.5 40 236)">

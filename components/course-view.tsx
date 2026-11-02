@@ -38,7 +38,7 @@ export function CourseView({ slug }: { slug: string }) {
           <dl className="grid gap-6 sm:grid-cols-3">
             {[
               [hi ? "किसके लिए" : "Who it's for", shown.eligibility],
-              [hi ? "अवधि" : "Duration", shown.duration],
+              [hi ? "ड्यूरेशन" : "Duration", shown.duration],
               [hi ? "फ़ीस" : "Fee", fee ? formatFeeRange(fee, language) : ""],
             ].map(([label, value]) => (
               <div key={label} className="border-t border-foreground pt-3">
@@ -86,7 +86,7 @@ export function CourseView({ slug }: { slug: string }) {
               { label: hi ? "कोर्स" : "Course", value: shown.name },
               { label: hi ? "बैच" : "Batch", value: first?.label ?? "—" },
               { label: hi ? "तारीख" : "Date", value: firstDate ? formatLongDate(firstDate, language) : "—", mono: true },
-              { label: hi ? "समय" : "Time", value: first?.time ?? "—", mono: true },
+              { label: hi ? "टाइम" : "Time", value: first?.time ?? "—", mono: true },
             ]}
           />
           <Link href={`/contact?course=${course.slug}`} className="mt-4 inline-flex h-[52px] w-full items-center justify-center rounded-[10px] bg-primary font-semibold text-primary-foreground hover:bg-primary-hover">

@@ -31,7 +31,7 @@ export function formatFeeRange(
 ): string {
   const range = `${formatInr(fee.min)}–${formatInr(fee.max)}`;
   if (fee.period === "package") return range;
-  return language === "hi" ? `${range} / माह` : `${range} / month`;
+  return language === "hi" ? `${range} / महीना` : `${range} / month`;
 }
 
 export function courseFeeSummary(course: Course, language: "en" | "hi" = "en"): string {
@@ -42,7 +42,7 @@ export function courseFeeSummary(course: Course, language: "en" | "hi" = "en"): 
           ? fee.label === "Full package"
             ? "पूरा पैकेज"
             : fee.label === "Monthly"
-              ? "मासिक"
+              ? "महीने की"
               : fee.label === "Classes 9–10"
                 ? "क्लास 9–10"
                 : fee.label === "Classes 11–12"

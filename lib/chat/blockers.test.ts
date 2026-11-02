@@ -126,7 +126,7 @@ describe("blocker regressions", () => {
     expect(asked.ready).toBe(false);
     const phone = counsel({ text: "फोन", language: "hi", draft: asked.draft, now });
     expect(phone.draft.phone).toBeUndefined();
-    expect(phone.reply).toContain("फोन");
+    expect(phone.reply).toContain("फ़ोन");
     const punjabi = counsel({ text: "ਫੋਨ", language: "pa", draft: asked.draft, now });
     expect(punjabi.draft.phone).toBeUndefined();
   });
@@ -136,9 +136,9 @@ describe("blocker regressions", () => {
     expect(hindi.intent).toBe("admission");
     expect(hindi.ready).toBe(false);
     expect(hindi.draft.name).toBeUndefined();
-    expect(hindi.reply).toContain("फीस");
+    expect(hindi.reply).toContain("फ़ीस");
     expect(hindi.reply).toContain("ट्रायल");
-    expect(hindi.reply).toContain("जरूरी नहीं");
+    expect(hindi.reply).toContain("ज़रूरी नहीं");
     const english = counsel({ text: "how to join", language: "en", now });
     expect(english.intent).toBe("admission");
     expect(english.ready).toBe(false);
@@ -224,7 +224,7 @@ describe("blocker regressions", () => {
     });
     expect(mid.intent).toBe("eligibility");
     expect(mid.draft.name).toBe("अमन");
-    expect(mid.reply).toContain("फोन");
+    expect(mid.reply).toContain("फ़ोन");
     expect(mid.ready).toBe(false);
   });
 
@@ -694,7 +694,7 @@ describe("blocker regressions", () => {
     }
 
     const fees = counsel({ text: "JEE fees", language: "hi", now });
-    expect(fees.reply).toContain("मासिक");
+    expect(fees.reply).toContain("महीने की");
     expect(fees.reply).not.toContain("(Monthly)");
     const punjabiFees = counsel({ text: "JEE fees", language: "pa", now });
     expect(punjabiFees.reply).toContain("ਮਹੀਨਾਵਾਰ");

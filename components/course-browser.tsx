@@ -71,7 +71,7 @@ export function CourseBrowser() {
                     <p className="mt-1 text-sm text-muted-foreground">{shown.duration}</p>
                   </div>
                   <span className="inline-flex h-9 w-fit items-center rounded-[10px] border border-border px-3 text-sm font-semibold">
-                    {hi ? "विवरण" : "Details"} →
+                    {hi ? "डिटेल" : "Details"} →
                   </span>
                 </Link>
               </li>
