@@ -132,6 +132,9 @@ describe("trial form date chips and mobile review", () => {
     mount();
     const view = host;
     if (!view) throw new Error("host missing");
+    const aside = view.querySelector("aside");
+    expect(aside?.className).not.toContain("hidden lg:block");
+
     const name = view.querySelector("input") as HTMLInputElement;
     const phone = view.querySelectorAll("input")[1] as HTMLInputElement;
     act(() => {
@@ -148,11 +151,29 @@ describe("trial form date chips and mobile review", () => {
     await act(async () => {
       submit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
+
+    // During review, pass aside is hidden on mobile
+    expect(aside?.className).toContain("hidden lg:block");
+
     const reviewTicket = view.querySelector('form [role="group"]');
     expect(reviewTicket).toBeTruthy();
-    const hiddenWrappers = [...(reviewTicket?.querySelectorAll("dl > div") ?? [])].filter((div) =>
-      div.className.includes("hidden lg:block"),
-    );
-    expect(hiddenWrappers.length).toBe(2);
+    const rows = [...(reviewTicket?.querySelectorAll("dl > div") ?? [])].map((div) => ({
+      label: div.querySelector("dt")?.textContent?.trim(),
+      value: div.querySelector("dd")?.textContent?.trim(),
+      className: div.className,
+    }));
+    expect(rows).toHaveLength(6);
+    expect(rows[0]).toMatchObject({ label: "Name", value: "Harpreet" });
+    expect(rows[1]).toMatchObject({ label: "Phone", value: "9876543210" });
+    expect(rows[2]).toMatchObject({ label: "Course", value: "IELTS & PTE" });
+    expect(rows[2].className).toContain("lg:hidden");
+    expect(rows[3]).toMatchObject({ label: "Batch", value: "Morning" });
+    expect(rows[3].className).toContain("lg:hidden");
+    expect(rows[4].label).toBe("Date");
+    expect(rows[4].value).toBeTruthy();
+    expect(rows[4].value).not.toBe("—");
+    expect(rows[4].className).not.toContain("hidden");
+    expect(rows[5]).toMatchObject({ label: "Time", value: "7:00–9:00 am" });
+    expect(rows[5].className).not.toContain("hidden");
   });
 });

@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { academy, getCourse, type BatchId } from "@/lib/academy";
 import { courseCopy, ui } from "@/lib/localize";
-import { formatDateChip, formatFullDate, formatLongDate } from "@/lib/dates";
+import { formatDateChip, formatDateChipAria, formatLongDate } from "@/lib/dates";
 import { bookableDates } from "@/lib/schedule";
 import { formServerMessage } from "@/lib/chat/respond";
 import { useSiteLang } from "@/components/language-provider";
@@ -12,18 +12,6 @@ import { Ticket } from "@/components/ticket";
 import { cn } from "@/lib/utils";
 
 type Errors = Partial<Record<"name" | "phone" | "course" | "batch" | "date" | "form", string>>;
-
-export function groupWeeks(dates: string[]): string[][] {
-  const weeks: string[][] = [];
-  for (const iso of dates) {
-    const day = new Date(`${iso}T00:00:00Z`).getUTCDay();
-    const previous = weeks.at(-1);
-    const previousDay = previous ? new Date(`${previous.at(-1)}T00:00:00Z`).getUTCDay() : 0;
-    if (!previous || day <= previousDay) weeks.push([iso]);
-    else previous.push(iso);
-  }
-  return weeks;
-}
 
 export function TrialForm() {
   const language = useSiteLang();
@@ -289,7 +277,7 @@ export function TrialForm() {
                   key={iso}
                   type="button"
                   aria-pressed={date === iso}
-                  aria-label={formatFullDate(iso, language)}
+                  aria-label={formatDateChipAria(iso, language)}
                   onClick={() => setDate(iso)}
                   className={cn(
                     "min-h-10 rounded-[8px] border px-3 py-1.5 text-xs font-medium",
@@ -339,8 +327,10 @@ export function TrialForm() {
               fields={[
                 { label: hi ? "नाम" : "Name", value: name },
                 { label: hi ? "फ़ोन" : "Phone", value: phone, mono: true },
-                { label: hi ? "तारीख" : "Date", value: formatLongDate(date, language), mono: true, className: "hidden lg:block" },
-                { label: hi ? "टाइम" : "Time", value: chosen.time, mono: true, className: "hidden lg:block" },
+                { label: hi ? "कोर्स" : "Course", value: shown.name, className: "lg:hidden" },
+                { label: hi ? "बैच" : "Batch", value: chosen.label, className: "lg:hidden" },
+                { label: hi ? "तारीख" : "Date", value: formatLongDate(date, language), mono: true },
+                { label: hi ? "टाइम" : "Time", value: chosen.time, mono: true },
               ]}
             />
           </div>
@@ -355,7 +345,7 @@ export function TrialForm() {
         ) : null}
         <p className="mt-3 text-sm text-muted-foreground">{hi ? "नंबर सिर्फ़ इस ट्रायल को पक्का करने के लिए है। ईमेल या एसएमएस अपने आप नहीं जाता।" : "We only use your number to confirm this trial. No email or SMS is sent automatically."}</p>
       </form>
-      <aside className="lg:sticky lg:top-24">
+      <aside className={cn("lg:sticky lg:top-24", review && "hidden lg:block")}>
         <p className="mb-3 font-semibold">{hi ? "आपका ट्रायल पास" : "Your trial pass"}</p>
         <Ticket
           label={copy.ticketLabel}
