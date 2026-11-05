@@ -24,7 +24,7 @@ export function HomeView() {
           </svg>
           <div>
             <p className="eyebrow">{hi ? "जी.टी. रोड, फगवाड़ा · IELTS · JEE · NEET · PSEB" : "GT Road, Phagwara · IELTS · JEE · NEET · PSEB"}</p>
-            <h1 className={cn("mt-4 max-w-[16ch] font-heading text-[clamp(30px,5.2vw,60px)] font-extrabold", hi ? "leading-[1.28]" : "leading-[1.08]")}>
+            <h1 className={cn("mt-4 max-w-[16ch] font-heading text-[clamp(30px,5.2vw,60px)] font-extrabold", hi ? "leading-[1.42]" : "leading-[1.08]")}>
               {hi ? "आने वाले एग्ज़ाम के लिए छोटे बैच।" : "Small batches for the exam in front of you."}
             </h1>
             <p className="lead mt-5 max-w-[56ch] text-[19px] text-muted-foreground">{blocks.pages.heroBody}</p>

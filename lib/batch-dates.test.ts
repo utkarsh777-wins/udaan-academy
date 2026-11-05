@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateChip, formatDateChipAria, todayISO } from "@/lib/dates";
+import { buildCalendarWeeks, formatDateChip, formatDateChipAria, formatMonthHeading, todayISO, WEEKDAY_SHORT } from "@/lib/dates";
 import { bookableDates, weekdayIndex } from "@/lib/schedule";
 
 describe("bookable dates", () => {
@@ -63,5 +63,49 @@ describe("date chips formatting", () => {
     expect(formatDateChipAria(jan01, "hi")).toBe("शुक्र, 1 जनवरी 2027");
     expect(formatDateChip(jan01, "pa")).toBe("ਸ਼ੁੱਕਰ, 1 ਜਨਵਰੀ");
     expect(formatDateChipAria(jan01, "pa")).toBe("ਸ਼ੁੱਕਰ, 1 ਜਨਵਰੀ 2027");
+  });
+
+  it("formats localized month headings and weekday headers", () => {
+    expect(formatMonthHeading(2026, 11, "en")).toBe("November 2026");
+    expect(formatMonthHeading(2026, 11, "hi")).toBe("नवंबर 2026");
+    expect(formatMonthHeading(2026, 11, "pa")).toBe("ਨਵੰਬਰ 2026");
+
+    expect(WEEKDAY_SHORT.en).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+    expect(WEEKDAY_SHORT.hi).toEqual(["सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि", "रवि"]);
+    expect(WEEKDAY_SHORT.pa).toEqual(["ਸੋਮ", "ਮੰਗਲ", "ਬੁੱਧ", "ਵੀਰ", "ਸ਼ੁੱਕਰ", "ਸ਼ਨੀ", "ਐਤ"]);
+  });
+
+  it("builds calendar weeks with fixed 7-column rows, placeholders, and month breaks", () => {
+    // 2026-11-06 (Fri) to 2026-12-02 (Wed)
+    const sampleDates = ["2026-11-06", "2026-11-09", "2026-11-30", "2026-12-01", "2026-12-02"];
+    const months = buildCalendarWeeks(sampleDates);
+    expect(months).toHaveLength(2);
+
+    // November
+    expect(months[0].year).toBe(2026);
+    expect(months[0].month).toBe(11);
+    expect(months[0].weeks.every((w) => w.length === 7)).toBe(true);
+
+    // Nov 6 is Friday (index 4)
+    const firstWeek = months[0].weeks[0];
+    expect(firstWeek[4].bookable).toBe(true);
+    expect(firstWeek[4].day).toBe(6);
+    expect(firstWeek[0].bookable).toBe(false); // Mon gap
+
+    // Last week of Nov has Nov 30 (Mon, index 0)
+    const lastNovWeek = months[0].weeks.at(-1)!;
+    expect(lastNovWeek[0].bookable).toBe(true);
+    expect(lastNovWeek[0].day).toBe(30);
+    expect(lastNovWeek[1].bookable).toBe(false); // Tue gap (Dec 1)
+
+    // December
+    expect(months[1].year).toBe(2026);
+    expect(months[1].month).toBe(12);
+    const firstDecWeek = months[1].weeks[0];
+    expect(firstDecWeek[0].bookable).toBe(false); // Mon gap (Nov 30)
+    expect(firstDecWeek[1].bookable).toBe(true); // Tue Dec 1
+    expect(firstDecWeek[1].day).toBe(1);
+    expect(firstDecWeek[2].bookable).toBe(true); // Wed Dec 2
+    expect(firstDecWeek[2].day).toBe(2);
   });
 });

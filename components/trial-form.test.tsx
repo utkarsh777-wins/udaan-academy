@@ -116,16 +116,62 @@ describe("trial form errors", () => {
 });
 
 describe("trial form date chips and mobile review", () => {
-  it("formats date chips with weekday, month, and full date aria-label in English and Hindi", () => {
+  it("formats date chips as a 7-column calendar grid with weekday headers, placeholders, month headings, and aria-labels", () => {
     mount();
     const dateButtons = [...(host?.querySelectorAll("button") ?? [])].filter(
       (button) => button.hasAttribute("aria-pressed") && button.hasAttribute("aria-label"),
     );
     expect(dateButtons.length).toBeGreaterThan(0);
-    expect(dateButtons[0]?.textContent).toMatch(/^[A-Za-z]{3},\s+\d{1,2}\s+[A-Za-z]{3}$/);
+    // Inside the grid, each chip shows just the day number
+    expect(dateButtons[0]?.textContent?.trim()).toMatch(/^\d{1,2}$/);
+    // aria-label unchanged
     expect(dateButtons[0]?.getAttribute("aria-label")).toMatch(/^[A-Za-z]+,\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}$/);
+
+    // grid has 7 columns
     const container = dateButtons[0]?.parentElement;
-    expect(container?.className).toContain("flex-wrap");
+    expect(container?.className).toContain("grid-cols-7");
+
+    // weekday headers row (7 columns Mon..Sun)
+    const weekdayHeaders = [...(container?.querySelectorAll('[data-weekday-header="true"]') ?? [])];
+    expect(weekdayHeaders).toHaveLength(7);
+    expect(weekdayHeaders.map((h) => h.textContent?.trim())).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+
+    // placeholder cells for gaps
+    const placeholders = container?.querySelectorAll('[data-placeholder="true"]');
+    expect(placeholders?.length).toBeGreaterThan(0);
+
+    // month heading at start and at month break
+    const monthHeadings = [...(container?.querySelectorAll('[data-month-heading="true"]') ?? [])];
+    expect(monthHeadings.length).toBeGreaterThanOrEqual(2);
+    expect(monthHeadings[0]?.textContent?.trim()).toMatch(/^[A-Za-z]+\s+\d{4}$/);
+    expect(monthHeadings[1]?.textContent?.trim()).toMatch(/^[A-Za-z]+\s+\d{4}$/);
+    expect(monthHeadings[0]?.textContent).not.toBe(monthHeadings[1]?.textContent);
+  });
+
+  it("renders calendar grid with localized Hindi headers and month break heading", () => {
+    act(() => root?.unmount());
+    host?.remove();
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root?.render(
+        <LanguageProvider initial="hi">
+          <TrialForm />
+        </LanguageProvider>,
+      );
+    });
+    const grid = host?.querySelector(".grid-cols-7");
+    expect(grid).toBeTruthy();
+    const weekdayHeaders = [...(grid?.querySelectorAll('[data-weekday-header="true"]') ?? [])];
+    expect(weekdayHeaders.map((h) => h.textContent?.trim())).toEqual(["सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि", "रवि"]);
+    const monthHeadings = [...(grid?.querySelectorAll('[data-month-heading="true"]') ?? [])];
+    expect(monthHeadings.length).toBeGreaterThanOrEqual(2);
+    expect(monthHeadings[0]?.textContent).toContain("2026");
+    const dateButtons = [...(grid?.querySelectorAll("button") ?? [])].filter(
+      (b) => b.hasAttribute("aria-pressed") && b.hasAttribute("aria-label"),
+    );
+    expect(dateButtons[0]?.getAttribute("aria-label")).toMatch(/^[^\d]+,\s+\d{1,2}\s+[^\d]+\s+\d{4}$/);
   });
 
   it("avoids mobile detail duplication between review card and trial pass card", async () => {
@@ -175,5 +221,16 @@ describe("trial form date chips and mobile review", () => {
     expect(rows[4].className).not.toContain("hidden");
     expect(rows[5]).toMatchObject({ label: "Time", value: "7:00–9:00 am" });
     expect(rows[5].className).not.toContain("hidden");
+
+    // Review card shows course once (in Course field, not in a route line)
+    const reviewCourseMatches = reviewTicket?.textContent?.match(/IELTS & PTE/g) ?? [];
+    expect(reviewCourseMatches).toHaveLength(1);
+    expect(reviewTicket?.textContent).not.toContain("Phagwara");
+
+    // The trial pass aside keeps its route line
+    const asideTicket = view.querySelector('aside [role="group"]');
+    expect(asideTicket?.textContent).toContain("Phagwara");
+    const asideCourseMatches = asideTicket?.textContent?.match(/IELTS & PTE/g) ?? [];
+    expect(asideCourseMatches.length).toBeGreaterThanOrEqual(2);
   });
 });

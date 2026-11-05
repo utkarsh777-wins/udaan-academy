@@ -92,3 +92,77 @@ export function formatDateChipAria(iso: string, language: "en" | "hi" | "pa" = "
   const [year] = iso.split("-");
   return `${formatDateChip(iso, language)} ${year}`;
 }
+
+export const WEEKDAY_SHORT = {
+  en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+  hi: ["सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि", "रवि"],
+  pa: ["ਸੋਮ", "ਮੰਗਲ", "ਬੁੱਧ", "ਵੀਰ", "ਸ਼ੁੱਕਰ", "ਸ਼ਨੀ", "ਐਤ"],
+} as const;
+
+export function formatMonthHeading(year: number, month: number, language: "en" | "hi" | "pa" = "en"): string {
+  if (language === "pa") {
+    return `${PA_MONTHS[month - 1]} ${year}`;
+  }
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  const locale = language === "hi" ? "hi-IN" : "en-IN";
+  return new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+export interface CalendarCell {
+  iso: string;
+  day: number;
+  bookable: boolean;
+}
+
+export interface CalendarMonth {
+  year: number;
+  month: number;
+  key: string;
+  weeks: CalendarCell[][];
+}
+
+export function buildCalendarWeeks(dates: readonly string[]): CalendarMonth[] {
+  if (!dates.length) return [];
+  const monthMap = new Map<string, string[]>();
+  for (const d of dates) {
+    const ym = d.slice(0, 7);
+    const existing = monthMap.get(ym);
+    if (existing) existing.push(d);
+    else monthMap.set(ym, [d]);
+  }
+
+  const result: CalendarMonth[] = [];
+  for (const [ym, mDates] of monthMap.entries()) {
+    const [year, month] = ym.split("-").map(Number);
+    const minDate = mDates[0];
+    const maxDate = mDates[mDates.length - 1];
+    const minCol = (new Date(`${minDate}T00:00:00Z`).getUTCDay() + 6) % 7;
+    const startMonday = addISODays(minDate, -minCol);
+    const maxCol = (new Date(`${maxDate}T00:00:00Z`).getUTCDay() + 6) % 7;
+    const endSunday = addISODays(maxDate, 6 - maxCol);
+
+    const weeks: CalendarCell[][] = [];
+    let cursor = startMonday;
+    while (cursor <= endSunday) {
+      const week: CalendarCell[] = [];
+      for (let c = 0; c < 7; c++) {
+        const curISO = addISODays(cursor, c);
+        const inThisMonth = curISO.startsWith(ym);
+        const bookable = inThisMonth && mDates.includes(curISO);
+        week.push({
+          iso: curISO,
+          day: Number(curISO.slice(8, 10)),
+          bookable,
+        });
+      }
+      weeks.push(week);
+      cursor = addISODays(cursor, 7);
+    }
+    result.push({ year, month, key: ym, weeks });
+  }
+  return result;
+}
