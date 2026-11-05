@@ -516,7 +516,7 @@ describe("blocker regressions", () => {
     expect(reply).toContain("ਨਵੰਬਰ");
     expect(reply).not.toContain("M11");
     const named = counsel({ text: "JEE fees", language: "hi", now });
-    expect(named.reply).toContain("JEE फाउंडेशन");
+    expect(named.reply).toContain("JEE फ़ाउंडेशन");
     const punjabiCourse = counsel({ text: "JEE batches", language: "pa", now });
     expect(punjabiCourse.reply).toContain("JEE ਫਾਊਂਡੇਸ਼ਨ");
     const hindi = formServerMessage("hi", {

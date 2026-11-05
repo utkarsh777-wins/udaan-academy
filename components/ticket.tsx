@@ -12,7 +12,7 @@ export function Ticket({
   eyebrow: string;
   from: string;
   to: string;
-  fields: { label: string; value: string; mono?: boolean }[];
+  fields: { label: string; value: string; mono?: boolean; className?: string }[];
   label: string;
   className?: string;
 }) {
@@ -35,7 +35,7 @@ export function Ticket({
       </div>
       <dl className="grid grid-cols-2 gap-3.5 px-5 py-4">
         {fields.map((field) => (
-          <div key={field.label} className="min-w-0">
+          <div key={field.label} className={cn("min-w-0", field.className)}>
             <dt className="eyebrow text-[11px]">{field.label}</dt>
             <dd className={cn("mt-0.5 text-[15.5px] font-semibold break-words", field.mono && "num text-[14.5px] font-medium")}>{field.value || "—"}</dd>
           </div>

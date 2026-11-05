@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { academy, getCourse, type BatchId } from "@/lib/academy";
 import { courseCopy, ui } from "@/lib/localize";
-import { formatLongDate } from "@/lib/dates";
+import { formatDateChip, formatFullDate, formatLongDate } from "@/lib/dates";
 import { bookableDates } from "@/lib/schedule";
 import { formServerMessage } from "@/lib/chat/respond";
 import { useSiteLang } from "@/components/language-provider";
@@ -283,24 +283,23 @@ export function TrialForm() {
         <fieldset ref={dateRef} tabIndex={-1} className="mb-5 min-w-0 outline-none" aria-invalid={Boolean(errors.date)} aria-describedby={errors.date ? dateErrorId : undefined}>
           <legend className="mb-2 font-semibold">{copy.formDate}</legend>
           {chosen ? (
-            <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-1 [scrollbar-width:none]" aria-label={copy.formDate}>
-              {groupWeeks(dates).map((week) => (
-                <div key={week[0]} className="flex shrink-0 gap-1 rounded-[10px] border border-border p-1">
-                  {week.map((iso) => (
-                    <button
-                      key={iso}
-                      type="button"
-                      aria-pressed={date === iso}
-                      onClick={() => setDate(iso)}
-                      className={cn(
-                        "h-10 min-w-10 rounded-[8px] px-1 text-xs",
-                        date === iso ? "bg-foreground text-background" : "bg-card",
-                      )}
-                    >
-                      {iso.slice(8)}
-                    </button>
-                  ))}
-                </div>
+            <div className="flex flex-wrap gap-2" aria-label={copy.formDate}>
+              {dates.map((iso) => (
+                <button
+                  key={iso}
+                  type="button"
+                  aria-pressed={date === iso}
+                  aria-label={formatFullDate(iso, language)}
+                  onClick={() => setDate(iso)}
+                  className={cn(
+                    "min-h-10 rounded-[8px] border px-3 py-1.5 text-xs font-medium",
+                    date === iso
+                      ? "border-primary bg-foreground text-background"
+                      : "border-border bg-card hover:bg-accent",
+                  )}
+                >
+                  {formatDateChip(iso, language)}
+                </button>
               ))}
             </div>
           ) : (
@@ -340,8 +339,8 @@ export function TrialForm() {
               fields={[
                 { label: hi ? "नाम" : "Name", value: name },
                 { label: hi ? "फ़ोन" : "Phone", value: phone, mono: true },
-                { label: hi ? "तारीख" : "Date", value: formatLongDate(date, language), mono: true },
-                { label: hi ? "टाइम" : "Time", value: chosen.time, mono: true },
+                { label: hi ? "तारीख" : "Date", value: formatLongDate(date, language), mono: true, className: "hidden lg:block" },
+                { label: hi ? "टाइम" : "Time", value: chosen.time, mono: true, className: "hidden lg:block" },
               ]}
             />
           </div>

@@ -72,3 +72,44 @@ export function formatLongDate(iso: string, language: "en" | "hi" | "pa" = "en")
     timeZone: "UTC",
   }).format(date);
 }
+
+export function formatDateChip(iso: string, language: "en" | "hi" | "pa" = "en"): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (language === "pa") {
+    return `${PA_WEEKDAYS[date.getUTCDay()]}, ${day} ${PA_MONTHS[month - 1]}`;
+  }
+  const locale = language === "hi" ? "hi-IN" : "en-IN";
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+const PA_FULL_WEEKDAYS = [
+  "ਐਤਵਾਰ",
+  "ਸੋਮਵਾਰ",
+  "ਮੰਗਲਵਾਰ",
+  "ਬੁੱਧਵਾਰ",
+  "ਵੀਰਵਾਰ",
+  "ਸ਼ੁੱਕਰਵਾਰ",
+  "ਸ਼ਨੀਵਾਰ",
+];
+
+export function formatFullDate(iso: string, language: "en" | "hi" | "pa" = "en"): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (language === "pa") {
+    return `${PA_FULL_WEEKDAYS[date.getUTCDay()]}, ${day} ${PA_MONTHS[month - 1]} ${year}`;
+  }
+  const locale = language === "hi" ? "hi-IN" : "en-IN";
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}

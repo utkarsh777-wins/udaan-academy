@@ -11,3 +11,23 @@ describe("bookable dates", () => {
     expect(dates.at(-1)! <= "2026-12-15").toBe(true);
   });
 });
+
+import { formatDateChip, formatFullDate } from "@/lib/dates";
+
+describe("date chips formatting", () => {
+  it("formats date chips and full date aria labels across en, hi, and pa", () => {
+    const iso = "2026-11-09"; // Monday
+    // English
+    expect(formatDateChip(iso, "en")).toBe("Mon, 9 Nov");
+    expect(formatFullDate(iso, "en")).toBe("Monday, 9 November 2026");
+
+    // Hindi
+    expect(formatDateChip(iso, "hi")).toContain("सोम");
+    expect(formatDateChip(iso, "hi")).toContain("9");
+    expect(formatFullDate(iso, "hi")).toBe("सोमवार, 9 नवंबर 2026");
+
+    // Punjabi
+    expect(formatDateChip(iso, "pa")).toBe("ਸੋਮ, 9 ਨਵੰਬਰ");
+    expect(formatFullDate(iso, "pa")).toBe("ਸੋਮਵਾਰ, 9 ਨਵੰਬਰ 2026");
+  });
+});

@@ -74,7 +74,7 @@ describe("trial form accepts a one-word time name", () => {
     act(() => {
       setInput(name, student);
       setInput(phone, "9876543210");
-      const dateButtons = [...view.querySelectorAll("button")].filter((button) => /^\d{2}$/.test(button.textContent ?? ""));
+      const dateButtons = [...view.querySelectorAll("button")].filter((button) => button.hasAttribute("aria-pressed") && button.hasAttribute("aria-label"));
       dateButtons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       const select = view.querySelector("select") as HTMLSelectElement;
       const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
@@ -112,5 +112,47 @@ describe("trial form errors", () => {
     expect(describedBy).toBeTruthy();
     expect(host?.querySelector(`[id="${describedBy}"]`)?.textContent).toMatch(/name/i);
     expect(document.activeElement).toBe(name);
+  });
+});
+
+describe("trial form date chips and mobile review", () => {
+  it("formats date chips with weekday, month, and full date aria-label in English and Hindi", () => {
+    mount();
+    const dateButtons = [...(host?.querySelectorAll("button") ?? [])].filter(
+      (button) => button.hasAttribute("aria-pressed") && button.hasAttribute("aria-label"),
+    );
+    expect(dateButtons.length).toBeGreaterThan(0);
+    expect(dateButtons[0]?.textContent).toMatch(/^[A-Za-z]{3},\s+\d{1,2}\s+[A-Za-z]{3}$/);
+    expect(dateButtons[0]?.getAttribute("aria-label")).toMatch(/^[A-Za-z]+,\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}$/);
+    const container = dateButtons[0]?.parentElement;
+    expect(container?.className).toContain("flex-wrap");
+  });
+
+  it("avoids mobile detail duplication between review card and trial pass card", async () => {
+    mount();
+    const view = host;
+    if (!view) throw new Error("host missing");
+    const name = view.querySelector("input") as HTMLInputElement;
+    const phone = view.querySelectorAll("input")[1] as HTMLInputElement;
+    act(() => {
+      setInput(name, "Harpreet");
+      setInput(phone, "9876543210");
+      const dateButtons = [...view.querySelectorAll("button")].filter(
+        (b) => b.hasAttribute("aria-pressed") && b.hasAttribute("aria-label"),
+      );
+      dateButtons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const submit = [...view.querySelectorAll("button")].find(
+      (button) => button.getAttribute("type") === "submit",
+    );
+    await act(async () => {
+      submit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const reviewTicket = view.querySelector('form [role="group"]');
+    expect(reviewTicket).toBeTruthy();
+    const hiddenWrappers = [...(reviewTicket?.querySelectorAll("dl > div") ?? [])].filter((div) =>
+      div.className.includes("hidden lg:block"),
+    );
+    expect(hiddenWrappers.length).toBe(2);
   });
 });
