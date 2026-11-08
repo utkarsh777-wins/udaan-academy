@@ -13,6 +13,8 @@ export function FeesView() {
   const hi = language === "hi";
   const [filters, setFilters] = useState<string[]>([]);
   const goals = goalCopy(language);
+  const headers = hi ? ["कोर्स", "किसके लिए", "फ़ीस", "बैच"] : ["Course", "For", "Fee", "Batches"];
+  const rows = academy.courses.map((course) => ({ slug: course.slug, ...courseCopy(course, language) }));
 
   function toggle(id: string) {
     setFilters((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
@@ -28,30 +30,49 @@ export function FeesView() {
         </div>
       </div>
       <div className="mx-auto flex max-w-[1240px] flex-col gap-12 px-5 py-14 min-[768px]:px-8 min-[1920px]:max-w-[1360px]">
-        <div className="overflow-x-auto rounded-[14px] border border-border">
+        <div className="hidden overflow-x-auto rounded-[14px] border border-border min-[768px]:block">
           <table className="w-full min-w-[40rem] text-[15.5px]">
             <thead className="bg-muted text-muted-foreground">
               <tr>
-                {(hi ? ["कोर्स", "किसके लिए", "फ़ीस", "बैच"] : ["Course", "For", "Fee", "Batches"]).map((label) => (
-                  <th key={label} className="eyebrow px-5 py-3 text-left font-medium">{label}</th>
+                {headers.map((label) => (
+                  <th key={label} scope="col" className="eyebrow px-5 py-3 text-left font-medium">{label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {academy.courses.map((course) => {
-                const shown = courseCopy(course, language);
-                return (
-                  <tr key={course.slug} className="border-t border-border">
-                    <td className="px-5 py-3.5 font-medium">{shown.name}</td>
-                    <td className="px-5 py-3.5 text-muted-foreground">{shown.eligibility}</td>
-                    <td className="num px-5 py-3.5">{shown.fees.map((fee) => formatFeeRange(fee, language)).join(" · ")}</td>
-                    <td className="px-5 py-3.5">{shown.batches.map((batch) => batch.label).join(" · ")}</td>
-                  </tr>
-                );
-              })}
+              {rows.map((shown) => (
+                <tr key={shown.slug} className="border-t border-border">
+                  <td className="px-5 py-3.5 font-medium">{shown.name}</td>
+                  <td className="px-5 py-3.5 text-muted-foreground">{shown.eligibility}</td>
+                  <td className="num px-5 py-3.5">{shown.fees.map((fee) => formatFeeRange(fee, language)).join(" · ")}</td>
+                  <td className="px-5 py-3.5">{shown.batches.map((batch) => batch.label).join(" · ")}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
+        <ul aria-label={hi ? "फ़ीस और बैच" : "Fees and batches"} className="divide-y divide-border rounded-[14px] border border-border min-[768px]:hidden">
+          {rows.map((shown) => (
+            <li key={shown.slug} className="px-5 py-4">
+              <p className="font-medium">{shown.name}</p>
+              <dl className="mt-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-[15px]">
+                <dt className="text-muted-foreground">{headers[1]}</dt>
+                <dd className="min-w-0 text-muted-foreground">{shown.eligibility}</dd>
+                <dt className="text-muted-foreground">{headers[2]}</dt>
+                <dd className="num min-w-0">
+                  {shown.fees.map((fee) => (
+                    <span key={fee.label} className="block">
+                      {shown.fees.length > 1 ? `${fee.label}: ` : ""}
+                      {formatFeeRange(fee, language)}
+                    </span>
+                  ))}
+                </dd>
+                <dt className="text-muted-foreground">{headers[3]}</dt>
+                <dd className="min-w-0">{shown.batches.map((batch) => batch.label).join(" · ")}</dd>
+              </dl>
+            </li>
+          ))}
+        </ul>
 
         <div>
           <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
