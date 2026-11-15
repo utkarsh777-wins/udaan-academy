@@ -118,7 +118,7 @@ export function FeesView() {
                     {shown.batches.map((batch) => {
                       const dim = filters.length > 0 && !filters.includes(batch.id);
                       return (
-                        <div key={batch.id} className={cn("border-b border-border p-5 md:border-r md:border-b-0", dim && "opacity-40")}>
+                        <div key={batch.id} className={cn("border-b border-border p-5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0", dim && "opacity-40")}>
                           <p className="text-sm font-semibold">{batch.label}</p>
                           <p className="num mt-1">{batch.time}</p>
                           <p className="text-sm text-muted-foreground">{batch.days}</p>

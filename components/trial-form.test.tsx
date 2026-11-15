@@ -74,7 +74,7 @@ describe("trial form accepts a one-word time name", () => {
     act(() => {
       setInput(name, student);
       setInput(phone, "9876543210");
-      const dateButtons = [...view.querySelectorAll("button")].filter((button) => /^\d{2}$/.test(button.textContent ?? ""));
+      const dateButtons = [...view.querySelectorAll("button")].filter((button) => button.hasAttribute("aria-pressed") && button.hasAttribute("aria-label"));
       dateButtons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       const select = view.querySelector("select") as HTMLSelectElement;
       const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
@@ -112,5 +112,125 @@ describe("trial form errors", () => {
     expect(describedBy).toBeTruthy();
     expect(host?.querySelector(`[id="${describedBy}"]`)?.textContent).toMatch(/name/i);
     expect(document.activeElement).toBe(name);
+  });
+});
+
+describe("trial form date chips and mobile review", () => {
+  it("formats date chips as a 7-column calendar grid with weekday headers, placeholders, month headings, and aria-labels", () => {
+    mount();
+    const dateButtons = [...(host?.querySelectorAll("button") ?? [])].filter(
+      (button) => button.hasAttribute("aria-pressed") && button.hasAttribute("aria-label"),
+    );
+    expect(dateButtons.length).toBeGreaterThan(0);
+    // Inside the grid, each chip shows just the day number
+    expect(dateButtons[0]?.textContent?.trim()).toMatch(/^\d{1,2}$/);
+    // aria-label unchanged
+    expect(dateButtons[0]?.getAttribute("aria-label")).toMatch(/^[A-Za-z]+,\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}$/);
+
+    // grid has 7 columns
+    const container = dateButtons[0]?.parentElement;
+    expect(container?.className).toContain("grid-cols-7");
+
+    // weekday headers row (7 columns Mon..Sun)
+    const weekdayHeaders = [...(container?.querySelectorAll('[data-weekday-header="true"]') ?? [])];
+    expect(weekdayHeaders).toHaveLength(7);
+    expect(weekdayHeaders.map((h) => h.textContent?.trim())).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+
+    // placeholder cells for gaps
+    const placeholders = container?.querySelectorAll('[data-placeholder="true"]');
+    expect(placeholders?.length).toBeGreaterThan(0);
+
+    // month heading at start and at month break
+    const monthHeadings = [...(container?.querySelectorAll('[data-month-heading="true"]') ?? [])];
+    expect(monthHeadings.length).toBeGreaterThanOrEqual(2);
+    expect(monthHeadings[0]?.textContent?.trim()).toMatch(/^[A-Za-z]+\s+\d{4}$/);
+    expect(monthHeadings[1]?.textContent?.trim()).toMatch(/^[A-Za-z]+\s+\d{4}$/);
+    expect(monthHeadings[0]?.textContent).not.toBe(monthHeadings[1]?.textContent);
+  });
+
+  it("renders calendar grid with localized Hindi headers and month break heading", () => {
+    act(() => root?.unmount());
+    host?.remove();
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root?.render(
+        <LanguageProvider initial="hi">
+          <TrialForm />
+        </LanguageProvider>,
+      );
+    });
+    const grid = host?.querySelector(".grid-cols-7");
+    expect(grid).toBeTruthy();
+    const weekdayHeaders = [...(grid?.querySelectorAll('[data-weekday-header="true"]') ?? [])];
+    expect(weekdayHeaders.map((h) => h.textContent?.trim())).toEqual(["सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि", "रवि"]);
+    const monthHeadings = [...(grid?.querySelectorAll('[data-month-heading="true"]') ?? [])];
+    expect(monthHeadings.length).toBeGreaterThanOrEqual(2);
+    expect(monthHeadings[0]?.textContent).toContain("2026");
+    const dateButtons = [...(grid?.querySelectorAll("button") ?? [])].filter(
+      (b) => b.hasAttribute("aria-pressed") && b.hasAttribute("aria-label"),
+    );
+    expect(dateButtons[0]?.getAttribute("aria-label")).toMatch(/^[^\d]+,\s+\d{1,2}\s+[^\d]+\s+\d{4}$/);
+  });
+
+  it("avoids mobile detail duplication between review card and trial pass card", async () => {
+    mount();
+    const view = host;
+    if (!view) throw new Error("host missing");
+    const aside = view.querySelector("aside");
+    expect(aside?.className).not.toContain("hidden lg:block");
+
+    const name = view.querySelector("input") as HTMLInputElement;
+    const phone = view.querySelectorAll("input")[1] as HTMLInputElement;
+    act(() => {
+      setInput(name, "Harpreet");
+      setInput(phone, "9876543210");
+      const dateButtons = [...view.querySelectorAll("button")].filter(
+        (b) => b.hasAttribute("aria-pressed") && b.hasAttribute("aria-label"),
+      );
+      dateButtons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const submit = [...view.querySelectorAll("button")].find(
+      (button) => button.getAttribute("type") === "submit",
+    );
+    await act(async () => {
+      submit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    // During review, pass aside is hidden on mobile
+    expect(aside?.className).toContain("hidden lg:block");
+
+    const reviewTicket = view.querySelector('form [role="group"]');
+    expect(reviewTicket).toBeTruthy();
+    const rows = [...(reviewTicket?.querySelectorAll("dl > div") ?? [])].map((div) => ({
+      label: div.querySelector("dt")?.textContent?.trim(),
+      value: div.querySelector("dd")?.textContent?.trim(),
+      className: div.className,
+    }));
+    expect(rows).toHaveLength(6);
+    expect(rows[0]).toMatchObject({ label: "Name", value: "Harpreet" });
+    expect(rows[1]).toMatchObject({ label: "Phone", value: "9876543210" });
+    expect(rows[2]).toMatchObject({ label: "Course", value: "IELTS & PTE" });
+    expect(rows[2].className).toContain("lg:hidden");
+    expect(rows[3]).toMatchObject({ label: "Batch", value: "Morning" });
+    expect(rows[3].className).toContain("lg:hidden");
+    expect(rows[4].label).toBe("Date");
+    expect(rows[4].value).toBeTruthy();
+    expect(rows[4].value).not.toBe("—");
+    expect(rows[4].className).not.toContain("hidden");
+    expect(rows[5]).toMatchObject({ label: "Time", value: "7:00–9:00 am" });
+    expect(rows[5].className).not.toContain("hidden");
+
+    // Review card shows course once (in Course field, not in a route line)
+    const reviewCourseMatches = reviewTicket?.textContent?.match(/IELTS & PTE/g) ?? [];
+    expect(reviewCourseMatches).toHaveLength(1);
+    expect(reviewTicket?.textContent).not.toContain("Phagwara");
+
+    // The trial pass aside keeps its route line
+    const asideTicket = view.querySelector('aside [role="group"]');
+    expect(asideTicket?.textContent).toContain("Phagwara");
+    const asideCourseMatches = asideTicket?.textContent?.match(/IELTS & PTE/g) ?? [];
+    expect(asideCourseMatches.length).toBeGreaterThanOrEqual(2);
   });
 });

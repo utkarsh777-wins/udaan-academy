@@ -5,6 +5,7 @@ import { academy, formatFeeRange } from "@/lib/academy";
 import { courseCopy, textBlocks, ui } from "@/lib/localize";
 import { useSiteLang } from "@/components/language-provider";
 import { RoadMap } from "@/components/marks";
+import { cn } from "@/lib/utils";
 
 const routeOrder = ["ielts-pte", "jee-foundation", "neet-foundation", "punjab-board"] as const;
 
@@ -23,7 +24,7 @@ export function HomeView() {
           </svg>
           <div>
             <p className="eyebrow">{hi ? "जी.टी. रोड, फगवाड़ा · IELTS · JEE · NEET · PSEB" : "GT Road, Phagwara · IELTS · JEE · NEET · PSEB"}</p>
-            <h1 className="mt-4 max-w-[16ch] font-heading text-[clamp(30px,5.2vw,60px)] leading-[1.08] font-extrabold">
+            <h1 className={cn("mt-4 max-w-[16ch] font-heading text-[clamp(30px,5.2vw,60px)] font-extrabold", hi ? "leading-[1.42]" : "leading-[1.08]")}>
               {hi ? "आने वाले एग्ज़ाम के लिए छोटे बैच।" : "Small batches for the exam in front of you."}
             </h1>
             <p className="lead mt-5 max-w-[56ch] text-[19px] text-muted-foreground">{blocks.pages.heroBody}</p>
@@ -37,7 +38,7 @@ export function HomeView() {
             </div>
             <p className="mt-7 flex flex-wrap gap-x-6 text-[14.5px] text-muted-foreground">
               <span>{hi ? "फ़ीस पहले से लिखी है" : "Fees shown upfront"}</span>
-              <span>{hi ? "काउंसलिंग अंग्रेज़ी, हिंदी और ਪੰਜਾਬੀ में" : "Counselling in English, हिंदी, ਪੰਜਾਬੀ"}</span>
+              <span>{hi ? "काउंसलिंग अंग्रेज़ी, हिंदी और पंजाबी में" : "Counselling in English, हिंदी, ਪੰਜਾਬੀ"}</span>
             </p>
           </div>
           <div className="relative overflow-hidden rounded-[14px] border border-border bg-card shadow-md">
@@ -145,7 +146,7 @@ export function HomeView() {
             {(hi
               ? [
                   ["छोटे बैच", "क्लास में बात सुनी जा सके, इतना छोटा ग्रुप।"],
-                  ["डाउट का फिक्स टाइम", "शाम के बैच के बाद और रविवार सुबह।"],
+                  ["डाउट का फ़िक्स टाइम", "शाम के बैच के बाद और रविवार सुबह।"],
                   ["मॉक टेस्ट प्रैक्टिस है", "स्कोर का अनुमान नहीं।"],
                   ["फ़ीस लिखी हुई है", "जो यहाँ नहीं लिखा, वह डेस्क पर नहीं जुड़ता।"],
                   ["तीन भाषाएँ", "अंग्रेज़ी, हिंदी और पंजाबी।"],

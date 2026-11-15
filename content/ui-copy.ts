@@ -216,7 +216,7 @@ const hi = {
   savedCaption: "सेव हुई फ़्री ट्रायल क्लास रिक्वेस्ट",
   metaHomeTitle: "उड़ान अकादमी",
   metaHomeDescription: "फगवाड़ा की जीटी रोड पर IELTS, PTE, JEE, NEET, पंजाब बोर्ड और स्पोकन इंग्लिश की कोचिंग।",
-  metaCoursesDescription: "उड़ान अकादमी में IELTS और PTE, JEE और NEET फाउंडेशन, पंजाब बोर्ड ट्यूशन, और स्पोकन इंग्लिश।",
+  metaCoursesDescription: "उड़ान अकादमी में IELTS और PTE, JEE और NEET फ़ाउंडेशन, पंजाब बोर्ड ट्यूशन, और स्पोकन इंग्लिश।",
   metaFacultyDescription: "उड़ान अकादमी की फैकल्टी। इस पेज पर नाम और पोर्ट्रेट प्लेसहोल्डर हैं।",
   metaFeesDescription: "उड़ान अकादमी की अंदाज़े की फ़ीस: महीने की ट्यूशन ₹1,500 से, और IELTS पैकेज ₹8,000 से।",
   metaContactDescription: "उड़ान अकादमी में फ़्री ट्रायल क्लास की रिक्वेस्ट। इस पेज का फ़ोन और पता प्लेसहोल्डर हैं।",
