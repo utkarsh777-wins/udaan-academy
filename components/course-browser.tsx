@@ -21,7 +21,7 @@ export function CourseBrowser() {
 
   return (
     <div>
-      <div role="tablist" aria-label={copy.filterLabel} className="mb-7 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+      <div role="tablist" aria-label={copy.filterLabel} className="mb-7 flex flex-wrap gap-1.5 pb-1 md:flex-nowrap md:overflow-x-auto md:[scrollbar-width:none]">
         {goals.map((item) => (
           <button
             key={item.id}

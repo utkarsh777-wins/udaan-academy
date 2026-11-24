@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { counsel, openingGreeting } from "@/lib/chat/respond";
 import { parseUtterance, tokenize } from "@/lib/chat/parser";
 
@@ -250,5 +250,48 @@ describe("date step", () => {
     expect(missed.reply).toContain("8 November");
     expect(missed.reply).not.toContain("20 November");
     expect(missed.reply).not.toContain("2026-11-20");
+  });
+
+  it("keeps today, day 45, and a rolled January, and misses impossible days", () => {
+    const monday = new Date("2026-11-02T01:00:00.000Z");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(monday);
+    try {
+      const today = counsel({ text: "2 November", language: "en", draft, now: monday });
+      expect(today.draft.date).toBe("2026-11-02");
+      expect(today.draft.confirming).toBe(true);
+      expect(today.reply).not.toMatch(/45/);
+
+      const edge = counsel({ text: "17 December", language: "en", draft, now: monday });
+      expect(edge.draft.date).toBe("2026-12-17");
+      expect(edge.draft.confirming).toBe(true);
+      expect(edge.reply).not.toMatch(/45/);
+
+      const pastWindow = counsel({ text: "18 December", language: "en", draft, now: monday });
+      expect(pastWindow.draft.date).toBeUndefined();
+      expect(pastWindow.reply).toMatch(/45/);
+
+      const impossible = counsel({ text: "31 November", language: "en", draft, now: monday });
+      expect(impossible.draft.date).toBeUndefined();
+      expect(impossible.reply).toContain("couldn’t read that date");
+
+      const february = counsel({ text: "29 February", language: "en", draft, now: monday });
+      expect(february.draft.date).toBeUndefined();
+      expect(february.reply).toContain("couldn’t read that date");
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const december = new Date("2026-12-20T04:00:00.000Z");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(december);
+    try {
+      const january = counsel({ text: "5 January", language: "en", draft, now: december });
+      expect(january.draft.date).toBe("2027-01-05");
+      expect(january.draft.confirming).toBe(true);
+      expect(january.reply).not.toMatch(/45/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

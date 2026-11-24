@@ -620,17 +620,23 @@ describe("route handlers", () => {
   });
 
   it("POST /api/bookings keeps a far date off the saved list", async () => {
-    const response = await postBooking(
-      new Request("http://127.0.0.1:43123/api/bookings", {
-        method: "POST",
-        headers: { "content-type": "application/json", host: "127.0.0.1:43123" },
-        body: JSON.stringify(payload("9876543277", { date: "2027-10-15" })),
-      }),
-    );
-    expect(response.status).toBe(422);
-    const body = (await response.json()) as { dateReason?: string; message: string };
-    expect(body.dateReason).toBe("window");
-    expect(body.message).toMatch(/45 days/);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    try {
+      const response = await postBooking(
+        new Request("http://127.0.0.1:43123/api/bookings", {
+          method: "POST",
+          headers: { "content-type": "application/json", host: "127.0.0.1:43123" },
+          body: JSON.stringify(payload("9876543277", { date: "2027-10-15" })),
+        }),
+      );
+      expect(response.status).toBe(422);
+      const body = (await response.json()) as { dateReason?: string; message: string };
+      expect(body.dateReason).toBe("window");
+      expect(body.message).toMatch(/45 days/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

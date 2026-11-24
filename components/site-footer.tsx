@@ -13,8 +13,8 @@ export function SiteFooter() {
   const hi = language === "hi";
 
   return (
-    <footer className="border-t border-border">
-      <div className="mx-auto grid max-w-[1240px] gap-8 px-5 py-12 min-[768px]:px-8 min-[1920px]:max-w-[1360px] sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="border-t border-border max-md:pb-24">
+      <div className="mx-auto grid max-w-[1240px] gap-8 py-12 pl-5 pr-16 min-[768px]:px-8 min-[1920px]:max-w-[1360px] sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Link href="/" className="flex items-center gap-2">
             <LogoMark />
@@ -47,7 +47,7 @@ export function SiteFooter() {
           <p>{hi ? "जी.टी. रोड, फगवाड़ा" : "GT Road, Phagwara"}</p>
         </div>
       </div>
-      <p className="border-t border-border px-5 py-4 text-center text-xs text-muted-foreground">© 2026 {hi ? "उड़ान अकादमी" : "Udaan Academy"}</p>
+      <p className="border-t border-border py-4 pl-5 pr-16 text-center text-xs text-muted-foreground min-[768px]:px-5">© 2026 {hi ? "उड़ान अकादमी" : "Udaan Academy"}</p>
     </footer>
   );
 }

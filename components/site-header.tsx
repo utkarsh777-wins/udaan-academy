@@ -34,7 +34,7 @@ export function SiteHeader() {
         {copy.notice}
       </div>
       <header className="sticky top-0 z-40 border-b border-border bg-background/94">
-        <div className="mx-auto flex h-[60px] max-w-[1240px] items-center gap-3 px-5 min-[768px]:h-[68px] min-[768px]:px-8 min-[1920px]:max-w-[1360px]">
+        <div className="mx-auto flex h-[60px] max-w-[1240px] items-center gap-3 px-4 min-[768px]:h-[68px] min-[768px]:px-8 min-[1920px]:max-w-[1360px]">
           <Link href="/" className="flex shrink-0 items-center gap-2.5">
             <LogoMark />
             <span>
@@ -65,7 +65,7 @@ export function SiteHeader() {
               );
             })}
           </nav>
-          <div className="ml-auto flex items-center gap-2.5">
+          <div className="ml-auto flex shrink-0 items-center gap-2.5">
             <LanguageSwitch />
             <Button
               type="button"
