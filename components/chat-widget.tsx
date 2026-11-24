@@ -397,15 +397,18 @@ export function ChatWidget() {
           ref={launcherRef}
           size="lg"
           className={cn(
-            "fixed right-4 z-40 h-12 rounded-full bg-foreground px-4 text-background shadow-lg hover:bg-foreground/90 lg:right-6 lg:bottom-6 lg:h-[52px]",
-            pathname.startsWith("/courses/") ? "bottom-24" : "bottom-4",
+            "fixed right-3 z-40 size-11 rounded-full bg-foreground p-0 text-background shadow-lg hover:bg-foreground/90",
+            "md:right-4 md:h-12 md:w-auto md:px-4",
+            "lg:right-6 lg:bottom-6 lg:h-[52px]",
+            pathname.startsWith("/courses/") ? "bottom-24" : "bottom-3 md:bottom-4",
           )}
           onClick={() => setOpen(true)}
           aria-haspopup="dialog"
           aria-expanded={false}
+          aria-label={copy.launcher}
         >
-          <MessageCircleIcon data-icon="inline-start" />
-          {copy.launcher}
+          <MessageCircleIcon data-icon="inline-start" className="size-5" />
+          <span className="max-md:sr-only">{copy.launcher}</span>
         </Button>
       )}
     </>

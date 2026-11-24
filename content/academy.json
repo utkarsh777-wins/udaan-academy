@@ -659,27 +659,27 @@
         "phone": "What phone number should the centre use? Ten digits, starting 6, 7, 8, or 9.",
         "course": "Which course — IELTS and PTE, JEE Foundation, NEET Foundation, Punjab Board, or Spoken English?",
         "batch": "Which batch — morning, evening, or weekend?",
-        "date": "Which date works? You can say 20 November, or a date like 2026-11-20."
+        "date": "Which date works? You can say {dayMonth}, or a date like {iso}."
       },
       "hi": {
         "name": "फ़्री ट्रायल क्लास पर कौन सा नाम लिखूँ?",
         "phone": "सेंटर किस फ़ोन नंबर पर कॉल करे? दस अंक, 6, 7, 8 या 9 से शुरू।",
         "course": "कौन सा कोर्स चाहिए — IELTS और PTE, JEE, NEET, पंजाब बोर्ड, या स्पोकन इंग्लिश?",
         "batch": "कौन सा बैच ठीक रहेगा — सुबह, शाम या वीकेंड?",
-        "date": "कौन सी तारीख ठीक रहेगी? 20 नवंबर या 20/11/2026 लिखिए।"
+        "date": "कौन सी तारीख ठीक रहेगी? {dayMonth} या {slash} लिखिए।"
       },
       "pa": {
         "name": "ਫ੍ਰੀ ਟਰਾਇਲ ਕਲਾਸ ਉੱਤੇ ਕਿਹੜਾ ਨਾਮ ਲਿਖਾਂ?",
         "phone": "ਆਪਣਾ ਫੋਨ ਨੰਬਰ ਲਿਖੋ, ਦਸ ਅੰਕ, 6, 7, 8 ਜਾਂ 9 ਤੋਂ ਸ਼ੁਰੂ?",
         "course": "ਕਿਹੜਾ ਕੋਰਸ ਚਾਹੀਦਾ — IELTS ਅਤੇ PTE, JEE, NEET, ਪੰਜਾਬ ਬੋਰਡ, ਜਾਂ ਸਪੋਕਨ ਇੰਗਲਿਸ਼?",
         "batch": "ਕਿਹੜਾ ਬੈਚ ਠੀਕ ਰਹੇਗਾ — ਸਵੇਰ, ਸ਼ਾਮ ਜਾਂ ਵੀਕਐਂਡ?",
-        "date": "ਕਿਹੜੀ ਤਾਰੀਖ ਠੀਕ ਰਹੇਗੀ? 20 ਨਵੰਬਰ ਜਾਂ 20/11/2026 ਲਿਖੋ।"
+        "date": "ਕਿਹੜੀ ਤਾਰੀਖ ਠੀਕ ਰਹੇਗੀ? {dayMonth} ਜਾਂ {slash} ਲਿਖੋ।"
       }
     },
     "dateMiss": {
-      "en": "I couldn’t read that date. Try 20 November or 20/11/2026.",
-      "hi": "यह तारीख समझ नहीं आई। 20 नवंबर या 20/11/2026 लिखिए।",
-      "pa": "ਇਹ ਤਾਰੀਖ ਸਮਝ ਨਹੀਂ ਆਈ। 20 ਨਵੰਬਰ ਜਾਂ 20/11/2026 ਲਿਖੋ।"
+      "en": "I couldn’t read that date. Try {dayMonth} or {slash}.",
+      "hi": "यह तारीख समझ नहीं आई। {dayMonth} या {slash} लिखिए।",
+      "pa": "ਇਹ ਤਾਰੀਖ ਸਮਝ ਨਹੀਂ ਆਈ। {dayMonth} ਜਾਂ {slash} ਲਿਖੋ।"
     },
     "confirmAsk": {
       "en": "Shall I send this? (yes / no)",

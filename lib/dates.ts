@@ -42,6 +42,34 @@ export function isISODate(value: string): boolean {
 }
 
 const PA_WEEKDAYS = ["ਐਤ", "ਸੋਮ", "ਮੰਗਲ", "ਬੁੱਧ", "ਵੀਰ", "ਸ਼ੁੱਕਰ", "ਸ਼ਨੀ"];
+const EN_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const HI_MONTHS = [
+  "जनवरी",
+  "फरवरी",
+  "मार्च",
+  "अप्रैल",
+  "मई",
+  "जून",
+  "जुलाई",
+  "अगस्त",
+  "सितंबर",
+  "अक्टूबर",
+  "नवंबर",
+  "दिसंबर",
+];
 const PA_MONTHS = [
   "ਜਨਵਰੀ",
   "ਫ਼ਰਵਰੀ",
@@ -56,6 +84,25 @@ const PA_MONTHS = [
   "ਨਵੰਬਰ",
   "ਦਸੰਬਰ",
 ];
+
+export function windowExample(now = new Date()): {
+  iso: string;
+  slash: string;
+  dayMonth: Record<"en" | "hi" | "pa", string>;
+} {
+  const iso = addISODays(todayISO(now), 7);
+  const [year, month, day] = iso.split("-").map(Number);
+  const name = (names: readonly string[]) => `${day} ${names[month - 1]}`;
+  return {
+    iso,
+    slash: `${day}/${month}/${year}`,
+    dayMonth: {
+      en: name(EN_MONTHS),
+      hi: name(HI_MONTHS),
+      pa: name(PA_MONTHS),
+    },
+  };
+}
 
 export function formatLongDate(iso: string, language: "en" | "hi" | "pa" = "en"): string {
   const [year, month, day] = iso.split("-").map(Number);

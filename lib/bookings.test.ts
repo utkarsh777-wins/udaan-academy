@@ -536,30 +536,36 @@ describe("route handlers", () => {
   });
 
   it("records the chat language on a saved trial", async () => {
-    const response = await postChat(
-      new Request("http://127.0.0.1:43123/api/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json", host: "127.0.0.1:43123" },
-        body: JSON.stringify({
-          message: "yes",
-          language: "pa",
-          draft: {
-            active: true,
-            confirming: true,
-            name: "Simran",
-            phone: "9876511111",
-            course: "ielts-pte",
-            batch: "morning",
-            date: "2026-11-20",
-          },
-          history: [],
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    try {
+      const response = await postChat(
+        new Request("http://127.0.0.1:43123/api/chat", {
+          method: "POST",
+          headers: { "content-type": "application/json", host: "127.0.0.1:43123" },
+          body: JSON.stringify({
+            message: "yes",
+            language: "pa",
+            draft: {
+              active: true,
+              confirming: true,
+              name: "Simran",
+              phone: "9876511111",
+              course: "ielts-pte",
+              batch: "morning",
+              date: "2026-11-20",
+            },
+            history: [],
+          }),
         }),
-      }),
-    );
-    expect(response.status).toBe(200);
-    const saved = await listBookings();
-    expect(saved[0]?.language).toBe("pa");
-    expect(saved[0]?.source).toBe("chat");
+      );
+      expect(response.status).toBe(200);
+      const saved = await listBookings();
+      expect(saved[0]?.language).toBe("pa");
+      expect(saved[0]?.source).toBe("chat");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("localises a chat rate limit and keeps the draft", async () => {
