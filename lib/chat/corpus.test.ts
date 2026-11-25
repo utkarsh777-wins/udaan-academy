@@ -911,9 +911,12 @@ describe("corpus through the chat route", () => {
     delete process.env.VERCEL;
     delete process.env.TRUST_PROXY;
     resetMemoryAttemptsForTests();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     delete process.env.BOOKINGS_STORE_PATH;
     await rm(directory, { recursive: true, force: true });
   });

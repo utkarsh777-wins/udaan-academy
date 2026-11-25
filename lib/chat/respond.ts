@@ -7,7 +7,7 @@ import {
   type Course,
   type Language,
 } from "@/lib/academy";
-import { addISODays, formatLongDate, todayISO } from "@/lib/dates";
+import { addISODays, formatLongDate, todayISO, windowExample } from "@/lib/dates";
 import { batchHasEnded, nextOpenDate, weekdayIndex } from "@/lib/schedule";
 import hindiContent from "@/content/academy.hi.json";
 import punjabiContent from "@/content/academy.pa.json";
@@ -84,11 +84,11 @@ export function counsel(options: {
   if (incoming.pendingTimeName && !isSubstantiveQuestion(options.text)) {
     const pendingTimeName = incoming.pendingTimeName;
     if (isAffirmative(options.text) || explicitConfirmation(options.text)) {
-      return resumeDraft({ ...incoming, name: pendingTimeName, pendingTimeName: undefined, active: true }, language);
+      return resumeDraft({ ...incoming, name: pendingTimeName, pendingTimeName: undefined, active: true }, language, now);
     }
     if (startsWithNo(options.text)) {
       return {
-        reply: askFor("name", language),
+        reply: askFor("name", language, now),
         draft: { ...incoming, pendingTimeName: undefined, name: undefined, active: true },
         ready: false,
         intent: "book",
@@ -111,7 +111,7 @@ export function counsel(options: {
           intent: "book",
         };
       }
-      return resumeDraft(kept, language);
+      return resumeDraft(kept, language, now);
     }
     if (isSubstantiveQuestion(options.text) || isOnlineQuestion(options.text)) {
       const body = spokenAnswer(parsed, options.text, language);
@@ -131,9 +131,9 @@ export function counsel(options: {
     if (yesPart && specifiesFieldChange(parsed)) {
       incoming = { ...incoming, name: pendingName, pendingName: undefined };
     } else if (yesPart) {
-      return resumeDraft({ ...incoming, name: pendingName, pendingName: undefined }, language);
+      return resumeDraft({ ...incoming, name: pendingName, pendingName: undefined }, language, now);
     } else if (isRenameNo(options.text)) {
-      return resumeDraft({ ...incoming, pendingName: undefined }, language);
+      return resumeDraft({ ...incoming, pendingName: undefined }, language, now);
     } else if (isRenameBypass(options.text, parsed, pendingName)) {
       const follow = counsel({ text: options.text, language, draft: { ...incoming, pendingName: undefined }, now });
       return {
@@ -157,7 +157,7 @@ export function counsel(options: {
   }
 
   if (incoming.confirming && isLoneWeakConfirm(options.text)) {
-    return resumeDraft({ ...incoming, pendingName: undefined }, language);
+    return resumeDraft({ ...incoming, pendingName: undefined }, language, now);
   }
 
   if (hasStarted(incoming) && explicitNameRejection(options.text)) {
@@ -170,7 +170,7 @@ export function counsel(options: {
   }
 
   if (hasStarted(incoming) && explicitConfirmation(options.text)) {
-    if (renameTurn) return resumeDraft({ ...incoming, pendingName: undefined }, language);
+    if (renameTurn) return resumeDraft({ ...incoming, pendingName: undefined }, language, now);
     if (incoming.confirming) {
       return {
         reply: speak(language, holding(language)),
@@ -179,7 +179,7 @@ export function counsel(options: {
         intent: "book",
       };
     }
-    return resumeDraft({ ...incoming, pendingName: undefined }, language);
+    return resumeDraft({ ...incoming, pendingName: undefined }, language, now);
   }
 
   const stated = explicitName(options.text);
@@ -192,13 +192,13 @@ export function counsel(options: {
     const afterQuestion = options.text.split(/[?？]/u).slice(1).join(" ").trim();
     const afterParsed = afterQuestion ? parseUtterance(afterQuestion, now) : null;
     if (!afterParsed || !specifiesFieldChange(afterParsed)) {
-      return answerBesideDraft(incoming, stated, parsed, options.text, language);
+      return answerBesideDraft(incoming, stated, parsed, options.text, language, undefined, now);
     }
   }
 
   if (hasStarted(incoming) && !isBookingCommand(options.text)) {
     const info = sideQuestion(options.text, parsed, language);
-    if (info) return answerBesideDraft(incoming, stated, parsed, options.text, language, info);
+    if (info) return answerBesideDraft(incoming, stated, parsed, options.text, language, info, now);
   }
 
   if (
@@ -217,7 +217,7 @@ export function counsel(options: {
     const draft = paired ? { ...incoming, name: paired, active: true } : incoming;
     const pending = paired ? firstMissing(draft) : hasStarted(incoming) ? firstMissing(incoming) : null;
     return {
-      reply: pending ? `${body} ${askFor(pending, language)}` : body,
+      reply: pending ? `${body} ${askFor(pending, language, now)}` : body,
       draft,
       ready: false,
       intent: parsed.intent,
@@ -248,7 +248,7 @@ export function counsel(options: {
   }
 
   if (incoming.confirming && (isAffirmative(options.text) || isReadyToSend(options.text))) {
-    if (renameTurn) return resumeDraft({ ...incoming, pendingName: undefined }, language);
+    if (renameTurn) return resumeDraft({ ...incoming, pendingName: undefined }, language, now);
     return {
       reply: speak(language, holding(language)),
       draft: { ...incoming, confirming: false, active: true },
@@ -274,14 +274,14 @@ export function counsel(options: {
     }
     if (!taken.name) {
       return {
-        reply: askFor("name", language),
+        reply: askFor("name", language, now),
         draft: named,
         ready: false,
         intent: "book",
       };
     }
     named.name = taken.name;
-    return resumeDraft(named, language);
+    return resumeDraft(named, language, now);
   }
 
   const base = incoming.confirming ? { ...incoming, confirming: false } : incoming;
@@ -299,7 +299,7 @@ export function counsel(options: {
     const body = answer(parsed, options.text, language);
     const missing = keepName ? firstMissing(kept) : null;
     return {
-      reply: missing ? `${body} ${askFor(missing, language)}` : body,
+      reply: missing ? `${body} ${askFor(missing, language, now)}` : body,
       draft: kept,
       ready: false,
       intent: isTrialContentQuestion(options.text) ? "eligibility" : parsed.intent,
@@ -320,7 +320,7 @@ export function counsel(options: {
     if (namedField === "batch") cleared.batch = undefined;
     if (namedField === "date") cleared.date = undefined;
     return {
-      reply: askFor(namedField, language),
+      reply: askFor(namedField, language, now),
       draft: cleared,
       ready: false,
       intent: "book",
@@ -364,7 +364,7 @@ export function counsel(options: {
 
   const askedForDate = firstMissing(base) === "date";
   const movedField = Boolean(parsed.phone || parsed.batch || parsed.courses.length === 1);
-  const dateMiss = askedForDate && !parsed.date && !movedField && options.text.trim() ? academy.counsellor.dateMiss[language] : null;
+  const dateMiss = askedForDate && !parsed.date && !movedField && options.text.trim() ? withDateExample(academy.counsellor.dateMiss[language], language, now) : null;
 
   const preface =
     parsed.intent === "fees"
@@ -373,7 +373,7 @@ export function counsel(options: {
           ? [answer(parsed, options.text, language)]
           : [];
 
-  const repeatAsk = draft.hint || dateMiss ? null : askFor(missingField, language);
+  const repeatAsk = draft.hint || dateMiss ? null : askFor(missingField, language, now);
   return {
     reply: [draft.hint, dateMiss, ...preface, repeatAsk].filter(Boolean).join(" "),
     draft: draft.draft,
@@ -735,11 +735,12 @@ function answerBesideDraft(
   text: string,
   language: Language,
   info?: string | null,
+  now = new Date(),
 ): CounselResult {
   const draft = stated && !incoming.name ? { ...incoming, name: stated } : incoming;
   const body = info || spokenAnswer(parsed, text, language);
   const missing = firstMissing(draft);
-  const follow = incoming.confirming ? academy.counsellor.confirmAsk[language] : missing ? askFor(missing, language) : null;
+  const follow = incoming.confirming ? academy.counsellor.confirmAsk[language] : missing ? askFor(missing, language, now) : null;
   return {
     reply: [body, follow].filter(Boolean).join(" "),
     draft: { ...draft, active: true, confirming: Boolean(incoming.confirming), pendingName: undefined },
@@ -772,7 +773,7 @@ function askRename(draft: Draft, name: string, language: Language, preface?: str
   };
 }
 
-function resumeDraft(draft: Draft, language: Language): CounselResult {
+function resumeDraft(draft: Draft, language: Language, now = new Date()): CounselResult {
   const next: Draft = { ...draft, pendingName: undefined };
   const missing = firstMissing(next);
   if (!missing) {
@@ -784,7 +785,7 @@ function resumeDraft(draft: Draft, language: Language): CounselResult {
     };
   }
   return {
-    reply: askFor(missing, language),
+    reply: askFor(missing, language, now),
     draft: { ...next, confirming: false, active: true },
     ready: false,
     intent: "book",
@@ -1181,8 +1182,17 @@ function firstMissing(draft: Draft): "name" | "phone" | "course" | "batch" | "da
   return null;
 }
 
-function askFor(field: "name" | "phone" | "course" | "batch" | "date", language: Language): string {
-  const line = academy.counsellor.ask[language][field] ?? academy.counsellor.ask.en.name;
+function withDateExample(template: string, language: Language, now: Date): string {
+  const example = windowExample(now);
+  return template
+    .replaceAll("{dayMonth}", example.dayMonth[language])
+    .replaceAll("{iso}", example.iso)
+    .replaceAll("{slash}", example.slash);
+}
+
+function askFor(field: "name" | "phone" | "course" | "batch" | "date", language: Language, now = new Date()): string {
+  const raw = academy.counsellor.ask[language][field] ?? academy.counsellor.ask.en.name;
+  const line = field === "date" ? withDateExample(raw, language, now) : raw;
   return language === "en" ? line : speak(language, [line]);
 }
 

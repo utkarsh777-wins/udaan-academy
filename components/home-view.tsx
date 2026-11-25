@@ -42,11 +42,27 @@ export function HomeView() {
             </p>
           </div>
           <div className="relative overflow-hidden rounded-[14px] border border-border bg-card shadow-md">
-            <div className="flex items-baseline justify-between border-b border-border px-5 py-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border px-3 py-4 min-[768px]:px-5">
               <strong className="font-semibold">{hi ? "बैच टाइमिंग" : "Batch timings"}</strong>
               <span className="num text-[13px] text-muted-foreground">{hi ? "नवंबर 2026" : "Nov 2026"}</span>
             </div>
-            <table className="w-full text-[14.5px]">
+            <ul className="divide-y divide-border min-[768px]:hidden">
+              {academy.courses.map((course) => {
+                const shown = courseCopy(course, language);
+                const batch = shown.batches[0];
+                return (
+                  <li key={course.slug} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-3 py-3">
+                    <div className="min-w-0">
+                      <span className="font-medium">{shown.name}</span>
+                      <span className="mt-0.5 block text-[13px] text-muted-foreground">{batch?.label}</span>
+                      <span className="block text-[13px] text-muted-foreground">{batch?.days}</span>
+                    </div>
+                    <span className="num max-w-[9rem] text-right text-[13px] leading-snug break-words">{batch?.time}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <table className="hidden w-full text-[14.5px] min-[768px]:table">
               <thead>
                 <tr className="text-muted-foreground">
                   <th className="eyebrow px-5 py-2 text-left font-medium">{hi ? "कोर्स" : "Course"}</th>
@@ -65,7 +81,7 @@ export function HomeView() {
                         <span className="mt-0.5 block text-[13px] text-muted-foreground">{batch?.days}</span>
                       </td>
                       <td className="px-5 py-3">{batch?.label}</td>
-                      <td className="num px-5 py-3 whitespace-nowrap">{batch?.time}</td>
+                      <td className="num px-5 py-3">{batch?.time}</td>
                     </tr>
                   );
                 })}

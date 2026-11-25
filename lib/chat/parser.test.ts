@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { counsel, openingGreeting } from "@/lib/chat/respond";
 import { parseUtterance, tokenize } from "@/lib/chat/parser";
 
@@ -177,5 +177,121 @@ describe("counsellor replies", () => {
     expect(ready.ready).toBe(true);
     expect(ready.reply.toLowerCase()).not.toContain("you're booked");
     expect(ready.reply.toLowerCase()).not.toContain("booking is confirmed");
+  });
+});
+
+describe("date step", () => {
+  const early = new Date("2026-11-01T04:00:00.000Z");
+  const late = new Date("2026-11-24T04:00:00.000Z");
+  const draft = {
+    active: true,
+    name: "Tara Singh",
+    phone: "9876502105",
+    course: "ielts-pte",
+    batch: "morning" as const,
+  };
+
+  it("accepts 20 November, 20 Nov, and an ISO date, rolling a yearless day to the next occurrence", () => {
+    expect(parseUtterance("20 November", early).date).toBe("2026-11-20");
+    expect(parseUtterance("20 Nov", early).date).toBe("2026-11-20");
+    expect(parseUtterance("2026-11-20", early).date).toBe("2026-11-20");
+    expect(parseUtterance("20 नवंबर", early).date).toBe("2026-11-20");
+    expect(parseUtterance("20 ਨਵੰਬਰ", early).date).toBe("2026-11-20");
+
+    expect(parseUtterance("20 November", late).date).toBe("2027-11-20");
+    expect(parseUtterance("20 Nov", late).date).toBe("2027-11-20");
+    expect(parseUtterance("2026-11-20", late).date).toBe("2026-11-20");
+
+    for (const language of ["en", "hi", "pa"] as const) {
+      const inside = counsel({ text: language === "en" ? "20 November" : language === "hi" ? "20 नवंबर" : "20 ਨਵੰਬਰ", language, draft, now: early });
+      expect(inside.draft.date, language).toBe("2026-11-20");
+      expect(inside.draft.confirming, language).toBe(true);
+      expect(inside.reply, language).not.toMatch(/45/);
+
+      const iso = counsel({ text: "2026-11-20", language, draft, now: early });
+      expect(iso.draft.date, language).toBe("2026-11-20");
+      expect(iso.draft.confirming, language).toBe(true);
+
+      const short = counsel({ text: "20 Nov", language, draft, now: early });
+      expect(short.draft.date, language).toBe("2026-11-20");
+
+      const rolled = counsel({ text: "20 November", language, draft, now: late });
+      expect(rolled.draft.date, language).toBeUndefined();
+      expect(rolled.reply, language).toMatch(/45/);
+
+      const pastIso = counsel({ text: "2026-11-20", language, draft, now: late });
+      expect(pastIso.draft.date, language).toBeUndefined();
+      expect(pastIso.reply, language).toMatch(/45/);
+    }
+  });
+
+  it("offers a date example taken from today in English, Hindi, and Punjabi", () => {
+    const pending = { active: true, name: "Tara Singh", phone: "9876502105", course: "ielts-pte" };
+    const english = counsel({ text: "morning", language: "en", draft: pending, now: early });
+    expect(english.reply).toContain("8 November");
+    expect(english.reply).toContain("2026-11-08");
+    expect(english.reply).not.toContain("20 November");
+    expect(english.reply).not.toContain("2026-11-20");
+
+    const hindi = counsel({ text: "morning", language: "hi", draft: pending, now: early });
+    expect(hindi.reply).toContain("8 नवंबर");
+    expect(hindi.reply).toContain("8/11/2026");
+    expect(hindi.reply).not.toContain("20 नवंबर");
+    expect(hindi.reply).not.toContain("20/11/2026");
+
+    const punjabi = counsel({ text: "morning", language: "pa", draft: pending, now: early });
+    expect(punjabi.reply).toContain("8 ਨਵੰਬਰ");
+    expect(punjabi.reply).toContain("8/11/2026");
+    expect(punjabi.reply).not.toContain("20 ਨਵੰਬਰ");
+    expect(punjabi.reply).not.toContain("20/11/2026");
+
+    const missed = counsel({ text: "next weekish", language: "en", draft, now: early });
+    expect(missed.draft.date).toBeUndefined();
+    expect(missed.reply).toContain("8 November");
+    expect(missed.reply).not.toContain("20 November");
+    expect(missed.reply).not.toContain("2026-11-20");
+  });
+
+  it("keeps today, day 45, and a rolled January, and misses impossible days", () => {
+    const monday = new Date("2026-11-02T01:00:00.000Z");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(monday);
+    try {
+      const today = counsel({ text: "2 November", language: "en", draft, now: monday });
+      expect(today.draft.date).toBe("2026-11-02");
+      expect(today.draft.confirming).toBe(true);
+      expect(today.reply).not.toMatch(/45/);
+
+      const edge = counsel({ text: "17 December", language: "en", draft, now: monday });
+      expect(edge.draft.date).toBe("2026-12-17");
+      expect(edge.draft.confirming).toBe(true);
+      expect(edge.reply).not.toMatch(/45/);
+
+      const pastWindow = counsel({ text: "18 December", language: "en", draft, now: monday });
+      expect(pastWindow.draft.date).toBeUndefined();
+      expect(pastWindow.reply).toMatch(/45/);
+
+      const impossible = counsel({ text: "31 November", language: "en", draft, now: monday });
+      expect(impossible.draft.date).toBeUndefined();
+      expect(impossible.reply).toContain("couldn’t read that date");
+
+      const february = counsel({ text: "29 February", language: "en", draft, now: monday });
+      expect(february.draft.date).toBeUndefined();
+      expect(february.reply).toContain("couldn’t read that date");
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const december = new Date("2026-12-20T04:00:00.000Z");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(december);
+    try {
+      const january = counsel({ text: "5 January", language: "en", draft, now: december });
+      expect(january.draft.date).toBe("2027-01-05");
+      expect(january.draft.confirming).toBe(true);
+      expect(january.reply).not.toMatch(/45/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

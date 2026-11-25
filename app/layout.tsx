@@ -61,7 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {copy.skip}
             </a>
             <SiteHeader />
-            <div className="flex-1 pb-24 md:pb-0">{children}</div>
+            <div className="flex-1 pb-24 pr-14 md:pr-0 md:pb-0">{children}</div>
             <SiteFooter />
             <ChatWidget />
           </LanguageProvider>
