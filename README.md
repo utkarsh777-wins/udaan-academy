@@ -81,3 +81,9 @@ npm run lint
 npm run typecheck
 npm run build
 ```
+
+## Disclaimer
+
+This website is a conceptual demonstration project developed for portfolio and educational purposes. It does not represent an actual operating business, and any displayed services, products, pricing, or business information are illustrative only.
+
+Third-party assets, fonts, and libraries remain subject to their respective licenses.
